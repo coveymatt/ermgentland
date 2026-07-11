@@ -1,0 +1,3214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Possibility Engine</title>
+<style>
+/* ============================================================
+   POSSIBILITY ENGINE v0.4 — RESPONSIVE UI
+   Mobile-first: header / canvas / tab content / bottom tab bar.
+   Desktop (>=1000px): canvas left, tab panel docked right.
+   ============================================================ */
+
+:root {
+  --bg: #0a0e14; --panel: #131a24; --panel-2: #0e141d; --edge: #24303f;
+  --ink: #d5dde6; --ink-dim: #7d8b9b;
+  --accent: #e8a33d; --danger: #d4695f; --good: #8fd67a;
+  --c-food: #d98d4a; --c-water: #5aa9e0; --c-warm: #e8963d;
+  --c-fear: #b07ae0; --c-energy: #e8d05a; --c-curio: #5fd4c4; --c-health: #ff6b81;
+  --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--ink); font-family: var(--sans);
+  font-size: 15px; height: 100%; overscroll-behavior: none; }
+
+/* the app owns the viewport; only tab content scrolls */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+/* ---------- header ---------- */
+#top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--edge);
+  background: var(--panel); flex-shrink: 0;
+}
+#top-bar h1 { font-family: var(--mono); font-size: 13px; letter-spacing: 2px; }
+.subtitle { font-size: 10px; color: var(--ink-dim); display: block; }
+.tb-right { display: flex; align-items: center; gap: 8px; }
+.frontier-pill {
+  font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent);
+  border: 1px solid var(--edge); border-radius: 14px; padding: 4px 11px;
+  background: var(--panel-2);
+}
+.tb-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--edge);
+  color: var(--ink); font-size: 15px; cursor: pointer;
+}
+.tb-btn:active { border-color: var(--accent); }
+
+/* ---------- canvas ---------- */
+#canvas-wrap { position: relative; flex-shrink: 0; border-bottom: 1px solid var(--edge); }
+#world { display: block; width: 100%; height: 44vh; min-height: 260px;
+  touch-action: none; cursor: crosshair; }
+#paused-badge {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 2px; color: var(--accent);
+  background: rgba(10,14,20,.85); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 3px 10px; pointer-events: none;
+}
+.hidden { display: none !important; }
+
+/* ---------- tab content ---------- */
+#tab-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px 12px 4px; }
+.tab-page { display: none; }
+.tab-page.active { display: block; }
+
+.tab-page h2 {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--ink-dim); margin: 14px 0 8px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.tab-page h2:first-child { margin-top: 0; }
+.counter { color: var(--accent); font-size: 12px; }
+.hint { font-size: 12.5px; color: var(--ink-dim); line-height: 1.45; margin-bottom: 10px; }
+
+/* ---------- bottom tab bar ---------- */
+#tab-bar {
+  display: flex; flex-shrink: 0; border-top: 1px solid var(--edge);
+  background: var(--panel); padding-bottom: env(safe-area-inset-bottom);
+}
+#tab-bar button {
+  flex: 1; padding: 8px 2px 7px; background: none; border: none;
+  color: var(--ink-dim); font-size: 11px; font-family: var(--sans);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  cursor: pointer; min-height: 52px;
+}
+#tab-bar button .t-ico { font-size: 17px; }
+#tab-bar button.active { color: var(--accent); }
+
+/* ---------- SEED tab ---------- */
+.influence-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.inf-label { font-family: var(--mono); font-size: 11px; color: var(--ink-dim);
+  letter-spacing: 1px; text-transform: uppercase; }
+#influence-pips { display: flex; gap: 5px; }
+.pip { width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--edge); background: var(--panel-2); }
+.pip.full { background: var(--c-curio); border-color: var(--c-curio); }
+
+#object-palette { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.obj-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 4px; background: var(--panel-2);
+  border: 1.5px solid var(--edge); border-radius: 12px;
+  color: var(--ink); cursor: pointer; min-height: 66px;
+}
+.obj-btn.selected { border-color: var(--accent); background: rgba(232,163,61,.08); }
+.obj-btn .icon { font-size: 22px; }
+.obj-btn .glyph { width: 40px; height: 34px; }
+.obj-btn .obj-name { font-size: 11.5px; font-weight: 600; }
+
+.sim-controls { display: flex; gap: 8px; margin: 12px 0 10px; }
+.sim-btn { flex: 1; padding: 11px 4px; font-family: var(--mono); font-size: 12px;
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 10px;
+  color: var(--ink); cursor: pointer; }
+.sim-btn.danger:active { border-color: var(--danger); color: var(--danger); }
+.slider-row { display: flex; align-items: center; gap: 10px; font-size: 12px;
+  color: var(--ink-dim); }
+.slider-row input[type="range"] { flex: 1; accent-color: var(--accent); height: 28px; }
+#speed-value { color: var(--accent); font-family: var(--mono); min-width: 38px; text-align: right; }
+
+/* ---------- OVERVIEW tab ---------- */
+#bottleneck-banner {
+  border: 1px solid rgba(224,112,90,.5); background: rgba(224,112,90,.1);
+  color: #f0a396; border-radius: 10px; padding: 9px 12px;
+  font-size: 13px; font-weight: 600; margin-bottom: 10px;
+}
+#bottleneck-banner.calm {
+  border-color: rgba(143,214,122,.4); background: rgba(143,214,122,.08); color: var(--good);
+}
+#bottleneck-banner .b-goal { display: block; font-weight: 400; font-size: 11.5px;
+  color: var(--ink-dim); margin-top: 2px; }
+
+.pressure-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
+.pressure { font-size: 11px; color: var(--ink-dim); }
+.pressure b { color: var(--ink); font-family: var(--mono); font-size: 14px; margin-left: 6px; }
+.pbar { height: 7px; background: var(--panel-2); border: 1px solid var(--edge);
+  border-radius: 4px; overflow: hidden; margin-top: 3px; }
+.pbar > div { height: 100%; width: 0%; background: var(--danger);
+  border-radius: 4px; transition: width .5s; }
+.pbar > div.good { background: var(--good); }
+
+/* problem graph: chains of chips */
+#problem-graph { display: flex; flex-direction: column; gap: 7px; }
+.chain {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 7px 9px; border: 1px solid var(--edge); border-radius: 10px;
+  background: var(--panel-2);
+}
+.chain.bottleneck { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(232,163,61,.3); }
+.chip {
+  font-family: var(--mono); font-size: 10px; padding: 3px 8px;
+  border-radius: 10px; border: 1px solid var(--edge); color: var(--ink-dim);
+  white-space: nowrap;
+}
+.chip.problem { color: #f0a396; border-color: rgba(224,112,90,.4); }
+.chip.problem.solved { color: var(--ink-dim); border-color: var(--edge); text-decoration: line-through; }
+.chip.belief.strong { color: var(--c-curio); border-color: rgba(95,212,196,.45); }
+.chip.app.on { color: var(--accent); border-color: rgba(232,163,61,.5); }
+.chip.state.on { color: var(--good); border-color: rgba(143,214,122,.5); }
+.arrow { color: var(--ink-dim); font-size: 10px; }
+
+.frontier-bar { position: relative; height: 13px; background: var(--panel-2);
+  border: 1px solid var(--edge); border-radius: 7px; overflow: hidden; margin: 2px 0 8px; }
+#frontier-fill { height: 100%; width: 0%;
+  background: linear-gradient(90deg, #8fd67a, #e8d05a); transition: width .4s; }
+#frontier-pct { position: absolute; right: 7px; top: -1px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink); }
+
+#states-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.rstate { font-size: 11.5px; color: var(--ink-dim); display: flex; gap: 6px; align-items: baseline; }
+.rstate.on { color: var(--good); }
+.rstate .s-ico { font-size: 10px; }
+
+.ov-facts { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.fact { font-size: 12px; display: flex; flex-direction: column;
+  border-left: 3px solid var(--edge); padding-left: 9px; }
+.fact .f-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--ink-dim); }
+
+/* ---------- BELIEFS tab ---------- */
+#belief-list { display: flex; flex-direction: column; gap: 6px; }
+.belief-card {
+  border: 1px solid var(--edge); border-left: 3px solid var(--c-curio);
+  border-radius: 9px; padding: 7px 10px; background: var(--panel-2);
+}
+.belief-card.faded { opacity: .45; border-left-color: var(--edge); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; }
+.b-name { font-size: 13px; font-weight: 700; }
+.b-conf { font-family: var(--mono); font-size: 12px; color: var(--c-curio); }
+.b-bar { height: 5px; background: #1a2330; border-radius: 3px; overflow: hidden; margin: 4px 0; }
+.b-bar > div { height: 100%; background: var(--c-curio); border-radius: 3px; transition: width .4s; }
+.b-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-dim); }
+
+#knowledge-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+#knowledge-list .empty-state { font-size: 12.5px; color: var(--ink-dim); line-height: 1.45; }
+.knowledge-card { display: flex; gap: 10px; border: 1px solid var(--edge);
+  border-radius: 9px; padding: 8px 10px; background: var(--panel-2); }
+.knowledge-card .k-icon { font-size: 20px; width: 28px; display: flex;
+  align-items: center; justify-content: center; }
+.knowledge-card .k-body { flex: 1; min-width: 0; }
+.k-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.k-name { font-size: 13px; font-weight: 700; }
+.k-tag { font-family: var(--mono); font-size: 8.5px; letter-spacing: 1px;
+  padding: 1.5px 6px; border-radius: 4px; background: rgba(232,163,61,.14);
+  color: var(--accent); white-space: nowrap; }
+.k-desc { font-size: 11px; color: var(--ink-dim); line-height: 1.4; margin-top: 2px; }
+.k-desc b { color: var(--c-curio); font-weight: 600; }
+.k-meta { margin-top: 3px; font-family: var(--mono); font-size: 9.5px;
+  color: var(--ink-dim); display: flex; justify-content: space-between; gap: 6px; }
+.k-meta .by { color: var(--ink); }
+
+/* ---------- LOG tab ---------- */
+#log-list { list-style: none; font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+#log-list li { color: var(--ink-dim); }
+#log-list li.discovery { color: var(--accent); }
+#log-list li.share { color: var(--c-curio); }
+#log-list li.obs { color: #a8c0d8; font-style: italic; }
+#log-list li .t { opacity: .5; margin-right: 7px; font-style: normal; }
+
+/* ---------- AGENTS tab ---------- */
+.legend { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 10px;
+  color: var(--ink-dim); margin-bottom: 8px; }
+#agent-list { display: flex; flex-direction: column; gap: 7px; }
+.agent-card { border: 1px solid var(--edge); border-radius: 10px;
+  padding: 8px 10px; background: var(--panel-2); }
+.a-head { display: flex; align-items: center; gap: 9px; }
+.a-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
+  color: #10151c; flex-shrink: 0; }
+.a-name { font-size: 13px; font-weight: 700; }
+.a-goal { font-size: 10px; color: var(--ink-dim); font-family: var(--mono); margin-left: auto; }
+.a-known { font-family: var(--mono); font-size: 10px; color: var(--accent); }
+.needs-row { display: flex; gap: 3px; margin-top: 6px; }
+.needs-row .nbar { flex: 1; height: 6px; border-radius: 3px;
+  background: #1a2330; overflow: hidden; }
+.needs-row .nfill { height: 100%; border-radius: 3px; }
+.a-question { font-size: 11px; color: #a8c0d8; font-style: italic; margin-top: 5px; }
+
+/* ---------- HELP modal ---------- */
+#help-modal { position: fixed; inset: 0; background: rgba(5,8,12,.7);
+  display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+#help-card { position: relative; background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 16px 16px 0 0;
+  padding: 18px 18px 26px; max-width: 560px; width: 100%;
+  max-height: 82vh; overflow-y: auto; }
+#help-card h1 { font-size: 17px; margin-bottom: 4px; }
+#help-card h2 { font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--accent); margin: 14px 0 4px; }
+#help-card p, #help-card li { font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+#help-card ol { padding-left: 20px; }
+#help-card b { color: var(--c-curio); }
+#help-close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px;
+  border-radius: 50%; background: var(--panel-2); border: 1px solid var(--edge);
+  color: var(--ink); font-size: 14px; cursor: pointer; }
+
+/* ============================================================
+   DESKTOP: canvas left, docked tab panel right
+   ============================================================ */
+@media (min-width: 1000px) {
+  #app { flex-direction: row; flex-wrap: wrap; }
+  #top-bar { width: 100%; }
+  #canvas-wrap { flex: 1; border-right: 1px solid var(--edge); border-bottom: none; }
+  #world { height: calc(100vh - 57px); min-height: 400px; }
+  #tab-content { width: 400px; order: 3; height: calc(100vh - 57px - 54px); }
+  #tab-bar { width: 400px; order: 2; border-top: none;
+    border-bottom: 1px solid var(--edge); }
+  #help-modal { align-items: center; }
+  #help-card { border-radius: 16px; }
+  #object-palette { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ---------- comfort/curiosity balance gauge ---------- */
+.balance-wrap { display: flex; align-items: center; gap: 10px; }
+.balance-bar {
+  position: relative; flex: 1; height: 12px; border-radius: 6px;
+  border: 1px solid var(--edge);
+  background: linear-gradient(90deg,
+    #3a4a5d 0 25%, #3f7a4a 25% 55%, #7a3f3f 55% 100%);
+}
+#ov-balance-marker {
+  position: absolute; top: -3px; width: 4px; height: 18px;
+  background: #fff; border-radius: 2px; left: 50%;
+  transition: left .5s;
+}
+#ov-balance-label { font-size: 10.5px; color: var(--ink-dim); font-family: var(--mono);
+  min-width: 108px; text-align: right; }
+.env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 4px; }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ COMPACT HEADER ============ -->
+  <header id="top-bar">
+    <div class="tb-title">
+      <h1>POSSIBILITY ENGINE</h1>
+      <span class="subtitle">v0.5 &#183; adaptive resilience</span>
+    </div>
+    <div class="tb-right">
+      <div class="frontier-pill" title="Reachable states unlocked">
+        <span id="frontier-count">0/12</span>
+      </div>
+      <button id="btn-pause" class="tb-btn" aria-label="Pause">&#10074;&#10074;</button>
+      <button id="btn-help" class="tb-btn" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <!-- ============ WORLD ============ -->
+  <div id="canvas-wrap">
+    <canvas id="world"></canvas>
+    <div id="paused-badge" class="hidden">PAUSED</div>
+  </div>
+
+  <!-- ============ TAB CONTENT ============ -->
+  <div id="tab-content">
+
+    <!-- SEED: player influence -->
+    <section id="tab-seed" class="tab-page">
+      <div class="influence-row">
+        <span class="inf-label">World influence</span>
+        <div id="influence-pips"></div>
+      </div>
+      <p class="hint">Seeding costs influence, which returns slowly. Some things
+      only take root in plausible places. You shape the land — never the people.</p>
+      <div id="object-palette"></div>
+      <div class="sim-controls">
+        <button id="btn-step" class="sim-btn">&#9654; Step</button>
+        <button id="btn-reset" class="sim-btn danger">&#8635; Reset</button>
+      </div>
+      <label class="slider-row" for="speed-slider">
+        <span>Speed</span>
+        <input type="range" id="speed-slider" min="0.25" max="4" step="0.25" value="1">
+        <span id="speed-value">1.0x</span>
+      </label>
+    </section>
+
+    <!-- OVERVIEW: the colony at a glance -->
+    <section id="tab-overview" class="tab-page active">
+      <div id="bottleneck-banner"></div>
+      <div class="pressure-grid">
+        <div class="pressure"><span>Population</span><b id="ov-pop">0</b></div>
+        <div class="pressure"><span>Food pressure</span><div class="pbar"><div id="ov-food"></div></div></div>
+        <div class="pressure"><span>Water pressure</span><div class="pbar"><div id="ov-water"></div></div></div>
+        <div class="pressure"><span>Predator pressure</span><div class="pbar"><div id="ov-pred"></div></div></div>
+        <div class="pressure"><span>Knowledge stability</span><div class="pbar"><div id="ov-know" class="good"></div></div></div>
+      </div>
+
+      <h2>Comfort &#8596; Curiosity</h2>
+      <div class="balance-wrap">
+        <div class="balance-bar"><div id="ov-balance-marker"></div></div>
+        <span id="ov-balance-label">&#8212;</span>
+      </div>
+
+      <h2>Environment</h2>
+      <div class="env-grid">
+        <div class="fact"><span class="f-label">River</span><span id="ov-river">Calm</span></div>
+        <div class="fact"><span class="f-label">Structures at risk</span><span id="ov-structs">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Active projects</span><span id="ov-projects">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Knowledge at risk</span><span id="ov-risk">&#8212;</span></div>
+      </div>
+
+      <h2>Problems &#8594; Beliefs &#8594; Applications &#8594; Futures</h2>
+      <div id="problem-graph"></div>
+
+      <h2>Reachable states <span id="ov-frontier-label" class="counter"></span></h2>
+      <div class="frontier-bar"><div id="frontier-fill"></div><span id="frontier-pct">0%</span></div>
+      <div id="states-list"></div>
+
+      <div class="ov-facts">
+        <div class="fact"><span class="f-label">Most common question</span><span id="ov-question">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Latest observation</span><span id="ov-obs">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Next application</span><span id="ov-next">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Unintended consequence</span><span id="ov-consequence">&#8212;</span></div>
+        <div class="fact"><span class="f-label">Resilience</span><span id="ov-resil">0 adaptations</span></div>
+      </div>
+    </section>
+
+    <!-- BELIEFS -->
+    <section id="tab-beliefs" class="tab-page">
+      <h2>What the colony believes</h2>
+      <p class="hint">Beliefs grow from repeated observations. They fade if no one
+      living still holds them.</p>
+      <div id="belief-list"></div>
+      <h2>Applications of belief</h2>
+      <ul id="knowledge-list"></ul>
+    </section>
+
+    <!-- LOG -->
+    <section id="tab-log" class="tab-page">
+      <h2>Events &amp; observations</h2>
+      <ul id="log-list"></ul>
+    </section>
+
+    <!-- AGENTS -->
+    <section id="tab-agents" class="tab-page">
+      <h2>Agents</h2>
+      <div class="legend" id="need-legend"></div>
+      <div id="agent-list"></div>
+    </section>
+  </div>
+
+  <!-- ============ BOTTOM TAB BAR ============ -->
+  <nav id="tab-bar">
+    <button data-tab="tab-seed"><span class="t-ico">&#127793;</span>Seed</button>
+    <button data-tab="tab-overview" class="active"><span class="t-ico">&#128506;</span>Overview</button>
+    <button data-tab="tab-beliefs"><span class="t-ico">&#128161;</span>Beliefs</button>
+    <button data-tab="tab-log"><span class="t-ico">&#128220;</span>Log</button>
+    <button data-tab="tab-agents"><span class="t-ico">&#129489;</span>Agents</button>
+  </nav>
+
+  <!-- ============ HELP MODAL ============ -->
+  <div id="help-modal" class="hidden">
+    <div id="help-card">
+      <button id="help-close" aria-label="Close">&#10005;</button>
+      <h1>How this world works</h1>
+
+      <h2>You can</h2>
+      <p>Seed materials into the land — sticks, stones, vines, fire, trees.
+      Where you put things changes what the colony can encounter.</p>
+
+      <h2>You cannot</h2>
+      <p>Control anyone. You can't move agents, teach them, or build for them.
+      The river, the animals, and the generations are beyond your reach.</p>
+
+      <h2>What agents do on their own</h2>
+      <p>They eat, drink, keep warm, run from predators, and raise children.
+      When life is stable, they get curious. Curiosity is guided by their
+      <b>questions</b> — the problems they can feel but can't yet solve.</p>
+
+      <h2>The loop</h2>
+      <ol>
+        <li>Seed objects into the world.</li>
+        <li>Watch what problems the colony faces.</li>
+        <li>Agents ask questions.</li>
+        <li>Experiments create <b>observations</b>.</li>
+        <li>Repeated observations strengthen <b>beliefs</b>.</li>
+        <li>Beliefs unlock <b>applications</b> — tools, structures, techniques.</li>
+        <li>Applications open new <b>reachable states</b>: futures the colony
+        couldn't reach before, like the far bank of the river.</li>
+      </ol>
+
+      <h2>Why the river matters</h2>
+      <p>It splits the world, and it kills. Anyone caught in the water — by a
+      flood, a failing dam, or bad luck — must fight for the bank or drown.
+      Some things only grow on the far side. No one can cross until the colony
+      <i>believes</i> enough about water, wood, and binding to conceive of a
+      bridge — and then builds one.</p>
+
+      <h2>Why knowledge can be lost</h2>
+      <p>Children are born knowing nothing. Beliefs live only in living minds:
+      if everyone who holds a belief dies before teaching it, it fades. A
+      thriving colony is also a school.</p>
+
+      <h2>Nothing lasts</h2>
+      <p>Bridges rot, dams crack, shelters sag, pits cave in, fires burn out,
+      rains flood, droughts starve. Every solution is temporary. A resilient
+      colony repairs, rebuilds, and rediscovers — that's the real game.</p>
+
+      <h2>Comfort vs curiosity</h2>
+      <p>A colony with every need met stops wondering. A colony in crisis has
+      no time to wonder. Discovery lives in the space between — keep them
+      a little uncomfortable, never desperate.</p>
+
+      <h2>The possibility frontier</h2>
+      <p>The number at the top isn't a score of things collected — it counts
+      <b>futures unlocked</b>: can they cross the river, eat without bushes,
+      make fire anywhere, outlive their finders? That's the game.</p>
+    </div>
+  </div>
+
+</div>
+<script>
+/* ============================================================
+   POSSIBILITY ENGINE v0.4 — the belief engine
+   ------------------------------------------------------------
+   Discovery is no longer  capability A + B = technology.
+   It is:  world state + capabilities + questions + constraints
+           = newly REACHABLE FUTURE STATES.
+
+   The loop the whole game runs on:
+     QUESTION -> EXPERIMENT -> OBSERVATION -> BELIEF
+             -> APPLICATION -> REACHABLE STATE
+
+   Agents notice things (observations). Repeated observations
+   build colony beliefs. Beliefs — held in living minds only —
+   make applications thinkable. Applications open futures.
+   ============================================================ */
+
+(() => {
+"use strict";
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const SIM_DT = 1 / 30;
+const EXPERIMENT_R = 70, INTERACT_R = 26, SHARE_R = 44;
+const LOG_LIMIT = 26, OBS_LIMIT = 40;
+const STORAGE_KEY = "possibilityEngine.bestStates";
+const HELP_SEEN_KEY = "possibilityEngine.helpSeen";
+const POP_CAP = 12, GRAZER_CAP = 9, PREDATOR_CAP = 3;
+const RIVER_HALF = 14, RIVER_STEP = 24;
+const INF_MAX = 6, INF_REGEN = 18;   // one influence point per 18s
+
+/* ============================================================
+   OBJECT TYPES — bags of capabilities
+   ============================================================ */
+const OBJECT_TYPES = {
+  stick: { icon: "\u{1FAB5}", label: "Stick", shape: "line", r: 12,
+    placeable: true, caps: ["long", "rigid", "burns", "tool_handle"] },
+  stone: { icon: "\u{1FAA8}", label: "Stone", shape: "rock", r: 10,
+    placeable: true, caps: ["hard", "heavy", "strikes", "cracks"] },
+  vine:  { icon: "\u{1F33F}", label: "Vine", shape: "coil", r: 10,
+    placeable: true, caps: ["flexible", "binds", "tension"] },
+  fire:  { icon: "\u{1F525}", label: "Fire", shape: "fire", r: 12,
+    placeable: true, caps: ["hot", "light", "danger", "cooks"] },
+  water: { icon: "\u{1F4A7}", label: "Water", shape: "pool", r: 16,
+    placeable: true, caps: ["wet", "flows", "cooling", "drinkable"] },
+  berrybush: { icon: "\u{1F352}", label: "Berries", shape: "bush", r: 13,
+    placeable: true, caps: ["food", "plant", "regrows"] },
+  clay:  { icon: "\u{1F3FA}", label: "Clay", shape: "blob", r: 11,
+    placeable: true, caps: ["moldable", "holds_shape", "earth"] },
+  reed:  { icon: "\u{1F38D}", label: "Reed", shape: "reed", r: 11,
+    placeable: true, caps: ["hollow", "flexible", "floats"] },
+  tree:  { icon: "\u{1F333}", label: "Tree", shape: "tree", r: 14,
+    placeable: true, caps: ["tall", "timber", "rigid", "shade"] },
+  log:     { label: "Log", shape: "log", r: 13, placeable: false,
+    caps: ["wood", "long", "rigid", "heavy", "burns", "floats"] },
+  hole:    { label: "Pit", shape: "hole", r: 11, placeable: false,
+    caps: ["deep", "earth", "concealed"] },
+  meat:    { label: "Meat", shape: "meat", r: 10, placeable: false,
+    caps: ["food", "meat"] },
+  shelter: { label: "Shelter", shape: "shelter", r: 18, placeable: false,
+    caps: ["cover", "structure", "shade"] },
+  lake:    { label: "Lake", shape: "pool", r: 34, placeable: false,
+    caps: ["wet", "drinkable", "cooling", "fish", "calm"] },
+  storage: { label: "Storage", shape: "storage", r: 14, placeable: false,
+    caps: ["structure", "cover", "holds_shape"] },
+  firecircle: { label: "Fire Circle", shape: "firecircle", r: 16, placeable: false,
+    caps: ["structure", "gathering"] },
+};
+const RIVER_CAPS = ["wet", "flows", "cooling", "drinkable", "fish"];
+
+/* ============================================================
+   BELIEFS — the primitive layer. Grown from observations,
+   held only in living minds, faded when no one carries them.
+   ============================================================ */
+const BELIEFS = [
+  { id: "water_separates", name: "Water separates", caps: ["flows"], nearRiver: true,
+    obs: ["The river turned #A back again.", "The water would not be walked on."] },
+  { id: "wood_floats", name: "Wood floats", caps: ["floats", "wet"],
+    obs: ["A reed rode the current without sinking.", "Wood bobbed at the water's edge."] },
+  { id: "sharp_cuts", name: "Sharp edges cut", caps: ["cracks", "strikes"],
+    obs: ["A struck stone split into cutting edges.", "The sharp flake bit deeper than fingers could."] },
+  { id: "fire_transforms", name: "Fire transforms", caps: ["hot", "cooks"],
+    obs: ["Food changed over the flame.", "Heat turned soft things hard."] },
+  { id: "fire_scares", name: "Fire scares beasts", caps: ["hot", "light"],
+    obs: ["Nothing wild came near the flame.", "The light kept the dark honest."] },
+  { id: "binding_structure", name: "Binding creates structure", caps: ["binds", "flexible"],
+    obs: ["Lashed pieces held as one.", "The vine made two things into one thing."] },
+  { id: "tension_stores", name: "Tension stores force", caps: ["tension"],
+    obs: ["The bent vine snapped back hard.", "Stretch held power until released."] },
+  { id: "heavy_blocks", name: "Heavy things block flow", caps: ["heavy", "flows"],
+    obs: ["A heavy stone parted the current around it."] },
+  { id: "reach_extends", name: "Long things extend reach", caps: ["long", "rigid"],
+    obs: ["The long stick touched what hands could not."] },
+  { id: "earth_shapes", name: "Earth can be shaped", caps: ["earth", "moldable"],
+    obs: ["Wet earth held the shape it was given.", "The ground gave way and stayed given-way."] },
+  { id: "shelter_calms", name: "Shelter calms fear", caps: ["cover"],
+    obs: ["Under cover, the night felt smaller."] },
+  { id: "teaching", name: "Repeated contact teaches", caps: null,
+    obs: ["The child repeated what the elder showed.", "Knowledge passed mouth to mouth, hand to hand."] },
+  { id: "knowledge_mortal", name: "Children inherit bodies, not knowledge", caps: null,
+    obs: ["#A was born knowing nothing.", "What #A knew went quiet with them."] },
+];
+const BELIEF_BY_ID = {};
+for (const b of BELIEFS) {
+  b.conf = 0; b.evidence = 0; b.lastObs = -99; b.firstBy = null;
+  BELIEF_BY_ID[b.id] = b;
+}
+
+/* ============================================================
+   APPLICATIONS — technologies as applications of beliefs.
+   `beliefs` are colony-confidence gates; `caps` is the physical
+   situation that must be at hand for the idea to land.
+   ============================================================ */
+const APPLICATIONS = [
+  { name: "Hammering", icon: "\u{1F528}", tag: "TOOL", beliefs: {},
+    caps: ["hard", "heavy", "strikes"], grants: ["shaping"],
+    effects: { forageBonus: 0.15 }, blurb: "striking mass concentrates force" },
+  { name: "Knapping", icon: "\u{1FAA8}", tag: "TOOL", beliefs: {},
+    caps: ["hard", "cracks", "strikes"], grants: ["sharp"],
+    effects: { forageBonus: 0.1 }, blurb: "stone breaks into edges" },
+  { name: "Torch", icon: "\u{1F525}", tag: "LIGHT", beliefs: { fire_scares: 20 },
+    caps: ["long", "burns", "hot"], grants: ["light", "fear_reduction"],
+    effects: { fearDecay: 0.6 }, blurb: "fire can be carried" },
+  { name: "Lashing", icon: "\u{1FAA2}", tag: "UTILITY", beliefs: { binding_structure: 25 },
+    caps: ["flexible", "binds", "long"], grants: ["structure"],
+    effects: { forageBonus: 0.1 }, blurb: "things can be joined" },
+  { name: "Cooked Food", icon: "\u{1F372}", tag: "FOOD", beliefs: { fire_transforms: 25 },
+    caps: ["food", "hot", "cooks"], grants: [],
+    effects: { eatBonus: 1.0 }, blurb: "heat transforms food" },
+  { name: "Pottery", icon: "\u{1F3FA}", tag: "MATERIAL",
+    beliefs: { fire_transforms: 35, earth_shapes: 30 },
+    caps: ["moldable", "holds_shape", "hot"], grants: ["container"],
+    effects: { drinkBonus: 0.8 }, blurb: "earth can hold water" },
+  { name: "Water Tube", icon: "\u{1F30A}", tag: "UTILITY", beliefs: { wood_floats: 25 },
+    caps: ["hollow", "floats", "flows"], grants: [],
+    effects: { thirstSlow: 0.5 }, blurb: "water can be moved" },
+  { name: "Lever", icon: "\u2699\uFE0F", tag: "TOOL", beliefs: { reach_extends: 25 },
+    caps: ["rigid", "long", "hard"], grants: ["leverage"],
+    effects: { forageBonus: 0.2 }, blurb: "small force, large effect" },
+  { name: "Snare", icon: "\u{1FAA4}", tag: "HUNTING", beliefs: { tension_stores: 30 },
+    caps: ["binds", "tension", "flexible"], grants: [],
+    effects: { eatBonus: 0.6 }, blurb: "tension can wait" },
+  { name: "Night Safety", icon: "\u{1F319}", tag: "SAFETY", beliefs: { fire_scares: 40 },
+    caps: ["light", "fear_reduction"], grants: [],
+    effects: { fearDecay: 0.8, fearCap: 40 }, blurb: "light pushes back the dark" },
+  { name: "Clay Mixing", icon: "\u{1F9F1}", tag: "MATERIAL", beliefs: { earth_shapes: 20 },
+    caps: ["wet", "earth", "moldable"], grants: ["moldable"],
+    effects: {}, blurb: "water makes earth workable" },
+  { name: "Spear", icon: "\u{1F3F9}", tag: "HUNTING",
+    beliefs: { sharp_cuts: 30, reach_extends: 30 },
+    caps: ["sharp", "long", "rigid"], grants: ["hunting_tool"],
+    effects: {}, blurb: "reach plus edge — harm at a safe distance" },
+  { name: "Axe", icon: "\u{1FA93}", tag: "TOOL",
+    beliefs: { sharp_cuts: 35, binding_structure: 30 },
+    caps: ["sharp", "tool_handle", "binds"], grants: ["chopping"],
+    effects: {}, blurb: "edge, handle, binding — trees become material" },
+  { name: "Digging", icon: "\u26CF\uFE0F", tag: "TOOL",
+    beliefs: { earth_shapes: 30, reach_extends: 20 },
+    caps: ["rigid", "long", "earth"], grants: ["excavation"],
+    effects: {}, blurb: "the ground itself can be reshaped" },
+  { name: "Fishing", icon: "\u{1F41F}", tag: "FOOD",
+    beliefs: { tension_stores: 25, water_separates: 20 },
+    caps: ["binds", "tension", "fish"], grants: [],
+    effects: {}, blurb: "the river feeds those with patience" },
+  { name: "Fire Craft", icon: "\u2668\uFE0F", tag: "SURVIVAL",
+    beliefs: { fire_transforms: 35, tension_stores: 30 },
+    caps: ["wood", "tension", "flexible"], grants: [],
+    effects: {}, blurb: "friction wakes the flame anywhere" },
+  { name: "Pit Trap", icon: "\u{1F573}\uFE0F", tag: "HUNTING",
+    beliefs: { earth_shapes: 30, tension_stores: 30 },
+    caps: ["deep", "concealed", "tension"], grants: [],
+    effects: {}, blurb: "a hidden fall waits forever" },
+  { name: "Bridge", icon: "\u{1F309}", tag: "STRUCTURE",
+    beliefs: { water_separates: 40, wood_floats: 30, binding_structure: 40 },
+    caps: ["structure", "wood", "flows"], grants: [],
+    effects: {}, blurb: "the far bank is reachable after all" },
+  { name: "Dam", icon: "\u{1F9F1}", tag: "STRUCTURE",
+    beliefs: { heavy_blocks: 35, water_separates: 30, binding_structure: 30 },
+    caps: ["heavy", "wood", "flows", "structure"], grants: [],
+    effects: {}, blurb: "stop the water, remake the land" },
+  { name: "Shelter", icon: "\u26FA", tag: "STRUCTURE",
+    beliefs: { binding_structure: 40 },
+    caps: ["structure", "wood", "binds"], grants: [],
+    effects: {}, blurb: "walls where there were none" },
+  { name: "Storage", icon: "\u{1F9FA}", tag: "STRUCTURE",
+    beliefs: { binding_structure: 35, earth_shapes: 25 },
+    caps: ["structure", "wood", "holds_shape"], grants: [],
+    effects: {}, blurb: "food against the lean days" },
+  { name: "Fire Circle", icon: "\u{1F3D5}\uFE0F", tag: "CULTURE",
+    beliefs: { teaching: 30, fire_scares: 25 },
+    caps: ["hot", "structure"], grants: [],
+    effects: {}, blurb: "where knowledge is passed on purpose" },
+];
+const APP_BY_NAME = {};
+for (const r of APPLICATIONS) APP_BY_NAME[r.name] = r;
+
+/* ============================================================
+   QUESTIONS — unresolved problems that direct curiosity
+   ============================================================ */
+const QUESTION_DEFS = [
+  { id: "cross", text: "How do we cross the water?",
+    beliefs: ["water_separates", "wood_floats", "binding_structure"],
+    caps: ["wood", "flows", "binds", "floats"],
+    active: () => state.river.length > 0 && crossings().length === 0 },
+  { id: "predator", text: "How do we stay safe from the beasts?",
+    beliefs: ["sharp_cuts", "reach_extends", "fire_scares"],
+    caps: ["hard", "long", "hot", "cracks"],
+    active: () => state.creatures.some(c => c.kind === "predator") &&
+                  !state.agents.some(a => a.derivedCaps.has("hunting_tool")) },
+  { id: "food", text: "How do we eat when the bushes are bare?",
+    beliefs: ["tension_stores", "sharp_cuts"],
+    caps: ["binds", "tension", "sharp"],
+    active: () => !anyLiving("Fishing") && !anyLiving("Spear") && !anyLiving("Snare") },
+  { id: "fire", text: "How do we make fire of our own?",
+    beliefs: ["fire_transforms", "tension_stores"],
+    caps: ["hot", "wood", "tension"],
+    active: () => !anyLiving("Fire Craft") },
+  { id: "legacy", text: "How do we keep what we know alive?",
+    beliefs: ["teaching", "knowledge_mortal"], caps: [],
+    active: () => state.births > 0 && knowledgeStability() < 60 },
+  { id: "warm", text: "How do we stay warm?",
+    beliefs: ["fire_transforms"], caps: ["hot", "burns"],
+    active: () => countType("fire") === 0 },
+];
+
+/* ============================================================
+   REACHABLE STATES — the frontier is futures, not a tech count
+   ============================================================ */
+function anyLiving(appName) {
+  return state.agents.some(a => a.knowledge.has(appName));
+}
+const REACHABLE_STATES = [
+  { id: "cross", name: "Can cross the river", test: () => crossings().length > 0 },
+  { id: "defend", name: "Can defend against predators",
+    test: () => state.agents.some(a => a.derivedCaps.has("hunting_tool")) },
+  { id: "foodfree", name: "Can eat without bushes",
+    test: () => anyLiving("Fishing") || anyLiving("Spear") || anyLiving("Snare") },
+  { id: "firemake", name: "Can make fire anywhere", test: () => anyLiving("Fire Craft") },
+  { id: "materials", name: "Can turn trees into materials", test: () => anyLiving("Axe") },
+  { id: "reshape", name: "Can reshape the river", test: () => !!state.dam },
+  { id: "shelter", name: "Can give fear a place to stop", test: () => countType("shelter") > 0 },
+  { id: "legacy", name: "Knowledge survives its finders",
+    test: () => state.taught >= 6 &&
+      BELIEFS.filter(b => b.conf > 15 && graspers(b.id) >= 2).length >= 4 },
+  { id: "banks", name: "Both banks inhabited",
+    test: () => {
+      let west = false, east = false;
+      for (const a of state.agents) (sideOf(a.x, a.y) === 0 ? west = true : east = true);
+      return west && east;
+    } },
+  { id: "store", name: "Can carry and store water", test: () => anyLiving("Pottery") },
+  { id: "granary", name: "Can store food for lean times", test: () => countType("storage") > 0 },
+  { id: "school", name: "Can pass knowledge on purpose", test: () => countType("firecircle") > 0 },
+];
+const TOTAL_STATES = REACHABLE_STATES.length;
+
+/* ============================================================
+   PROBLEM GRAPH — Problem -> Beliefs -> Application -> Future
+   ============================================================ */
+const CHAINS = [
+  { problem: "Cannot cross the river", qid: "cross",
+    beliefs: ["water_separates", "wood_floats", "binding_structure"],
+    app: "Bridge", stateId: "cross" },
+  { problem: "Predators are dangerous", qid: "predator",
+    beliefs: ["sharp_cuts", "reach_extends"], app: "Spear", stateId: "defend" },
+  { problem: "Food depends on bushes", qid: "food",
+    beliefs: ["tension_stores"], app: "Snare", stateId: "foodfree" },
+  { problem: "Fire is fixed in place", qid: "fire",
+    beliefs: ["fire_transforms", "tension_stores"], app: "Fire Craft", stateId: "firemake" },
+  { problem: "Knowledge dies with elders", qid: "legacy",
+    beliefs: ["teaching"], app: "Teaching", stateId: "legacy" },
+];
+
+/* ============================================================
+   NAMES / APPEARANCE / HELPERS
+   ============================================================ */
+const FOUNDER_NAMES = ["Lena", "Bo", "Mira", "Tavi", "Oren"];
+const CHILD_NAMES = ["Ash", "Rei", "Juno", "Piko", "Suri", "Nix", "Odo",
+  "Wren", "Faye", "Gil", "Isla", "Kade", "Tamsin", "Ura", "Vero", "Pell"];
+const AGENT_COLORS = ["#e8d05a", "#67c9e0", "#d783c9", "#8fd67a", "#e09a67",
+  "#c9e067", "#7a9ae0", "#e0677a", "#67e0b8", "#b8a3e8"];
+const HAIR = ["#7a4a22", "#22222a", "#5a3a20", "#2e3a20", "#503048", "#804828"];
+/* aptitudes: agents lean toward roles instead of all becoming identical */
+const APTITUDES = ["maker", "builder", "hunter", "keeper", "seeker"];
+const APT_TAGS = { maker: ["TOOL", "MATERIAL"], builder: ["STRUCTURE"],
+  hunter: ["HUNTING", "FOOD"], keeper: ["SAFETY", "CULTURE", "LIGHT"], seeker: [] };
+const SKIN = "#e8c39e";
+let nameCounter = 0;
+function nextChildName() {
+  const base = CHILD_NAMES[nameCounter % CHILD_NAMES.length];
+  const gen = Math.floor(nameCounter / CHILD_NAMES.length);
+  nameCounter++;
+  return gen === 0 ? base : base + " " + (gen + 1);
+}
+function rand(a, b) { return a + Math.random() * (b - a); }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function loadJSON(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  objects: [], agents: [], creatures: [], sites: [],
+  river: [], bridges: [], dam: null,
+  knowledge: new Map(),      // application records (name -> {app, by, time, tick})
+  observations: [],          // recent evidence, distinct from the log
+  log: [],
+  tick: 0, time: 0, paused: false, speed: 1,
+  selectedType: "stick",
+  bestStates: 0,
+  births: 0, deaths: 0, taught: 0,
+  lastAttack: -99,
+  predatorTimer: 55, colonyLost: false, nextId: 1,
+  influence: INF_MAX, infTimer: 0,
+  pitWary: 0,                // grazer wariness after pit deaths
+  ecoTimer: 0, beliefTimer: 0,
+  adaptations: 0,            // repairs, rebuilds, re-discoveries — resilience
+  lostApps: new Set(),       // applications no living mind knows anymore
+  rain: 50, flood: 0, drought: false,   // the environment's own moods
+  huntKills: 0, spearWary: 0, grazerScarce: false,
+};
+
+function graspers(beliefId) {
+  let n = 0;
+  for (const a of state.agents) if (a.beliefs.has(beliefId)) n++;
+  return n;
+}
+function knowledgeStability() {
+  const held = BELIEFS.filter(b => b.conf > 15);
+  if (!held.length) return 70;
+  const safe = held.filter(b => graspers(b.id) >= 2).length;
+  return Math.round((safe / held.length) * 100);
+}
+function countType(t) {
+  let n = 0;
+  for (const o of state.objects) if (o.type === t) n++;
+  return n;
+}
+
+/* ============================================================
+   DOM
+   ============================================================ */
+const canvas = document.getElementById("world");
+const ctx = canvas.getContext("2d");
+const el = id => document.getElementById(id);
+const elLog = el("log-list"), elKnow = el("knowledge-list"),
+  elAgents = el("agent-list"), elFront = el("frontier-count"),
+  elPaused = el("paused-badge"), elSpeed = el("speed-value");
+
+/* ============================================================
+   THE RIVER (unchanged constraint from v0.3)
+   ============================================================ */
+function generateRiver(w, h) {
+  const pts = [];
+  let x = w * rand(0.42, 0.58);
+  for (let y = -RIVER_STEP; y <= h + RIVER_STEP; y += RIVER_STEP) {
+    x = clamp(x + rand(-16, 16), w * 0.25, w * 0.75);
+    pts.push({ x, y });
+  }
+  return pts;
+}
+function riverXat(y) {
+  const pts = state.river;
+  if (!pts.length) return -9999;
+  const t = (y - pts[0].y) / RIVER_STEP;
+  const i = clamp(Math.floor(t), 0, pts.length - 2);
+  const f = clamp(t - i, 0, 1);
+  return pts[i].x + (pts[i + 1].x - pts[i].x) * f;
+}
+function riverIndexAt(y) {
+  return clamp(Math.round((y - state.river[0].y) / RIVER_STEP), 0, state.river.length - 1);
+}
+function sideOf(x, y) {
+  if (!state.river.length) return 0;
+  return x < riverXat(y) ? 0 : 1;
+}
+function isDry(i) { return state.dam !== null && i > state.dam.index; }
+function riverBlocked(x, y) {
+  if (!state.river.length) return false;
+  const i = riverIndexAt(y);
+  if (Math.abs(x - riverXat(y)) > RIVER_HALF * (1 + state.flood * 0.7) + 3) return false;
+  if (isDry(i)) return false;
+  for (const b of state.bridges) if (dist({ x, y }, b) < 26) return false;
+  return true;
+}
+function crossings() {
+  const list = state.bridges.slice();
+  if (state.dam) {
+    const i = clamp(state.dam.index + 2, 0, state.river.length - 1);
+    list.push({ x: state.river[i].x, y: state.river[i].y, dry: true });
+  }
+  return list;
+}
+function reachableFrom(who, x, y) {
+  if (!state.river.length) return true;
+  if (sideOf(who.x, who.y) === sideOf(x, y)) return true;
+  return crossings().length > 0;
+}
+function nearRiver(a, extra) {
+  if (!state.river.length) return false;
+  const i = riverIndexAt(a.y);
+  return !isDry(i) && Math.abs(a.x - riverXat(a.y)) < (extra || EXPERIMENT_R) + RIVER_HALF;
+}
+function nearestRiverAccess(a) {
+  const pts = state.river;
+  if (!pts.length) return null;
+  const s = sideOf(a.x, a.y);
+  let best = null, bestD = Infinity;
+  for (let i = 2; i < pts.length - 2; i += 2) {
+    if (isDry(i)) continue;
+    const off = (RIVER_HALF + 9) * (s === 0 ? -1 : 1);
+    const p = { x: pts[i].x + off, y: pts[i].y };
+    const d = dist(a, p);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best ? { x: best.x, y: best.y, r: 4, caps: RIVER_CAPS, isRiver: true } : null;
+}
+function moveBlocked(e, dt, radius) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  // already in the water (flood surge, recarved channel, bad luck):
+  // struggle toward the nearer bank instead of freezing in place
+  if (riverBlocked(e.x, e.y)) {
+    const rx = riverXat(e.y);
+    const dir = e.x < rx ? -1 : 1;
+    e.x = clamp(e.x + dir * 34 * dt + e.vx * dt * 0.25, radius, w - radius);
+    e.y = clamp(e.y + e.vy * dt * 0.3, radius, h - radius);
+    return;
+  }
+  const nx = clamp(e.x + e.vx * dt, radius, w - radius);
+  const ny = clamp(e.y + e.vy * dt, radius, h - radius);
+  if (!riverBlocked(nx, ny)) { e.x = nx; e.y = ny; return; }
+  if (!riverBlocked(nx, e.y)) { e.x = nx; return; }
+  if (!riverBlocked(e.x, ny)) { e.y = ny; return; }
+}
+
+/* ============================================================
+   OBSERVATIONS — evidence, mostly NOT discoveries
+   ============================================================ */
+function observe(beliefId, agent, customText) {
+  const b = BELIEF_BY_ID[beliefId];
+  if (!b || state.time - b.lastObs < 10) return;   // rate-limited evidence
+  b.lastObs = state.time;
+  b.evidence++;
+  b.conf = clamp(b.conf + clamp(13 - b.evidence * 2, 3, 13), 0, 100);
+  let by = null;
+  if (agent) {
+    agent.beliefs.add(beliefId);
+    if (!b.firstBy) b.firstBy = agent.name;
+    by = agent.name;
+  }
+  let text = customText || choice(b.obs);
+  text = text.replace("#A", by || "someone");
+  state.observations.unshift({ text, beliefId, by, time: state.time });
+  if (state.observations.length > OBS_LIMIT) state.observations.pop();
+  addLog(text, "obs");
+}
+
+/* ============================================================
+   SPAWNING / SEEDING
+   ============================================================ */
+function spawnObject(type, x, y) {
+  const def = OBJECT_TYPES[type];
+  const obj = {
+    type, x, y, caps: def.caps, r: def.r,
+    phase: Math.random() * Math.PI * 2,
+    berries: type === "berrybush" ? 7 : 0,
+    meatLeft: type === "meat" ? 3 : 0,
+    decay: type === "meat" ? 45 : 0,
+    fuel: type === "fire" ? 240 : 0,
+    regrowTimer: 0, chop: 0, trapCooldown: 0,
+    dropTimer: type === "tree" ? rand(50, 90) : 0,
+  };
+  state.objects.push(obj);
+  return obj;
+}
+function makeAgent(opts) {
+  return {
+    id: state.nextId++, name: opts.name, color: opts.color,
+    hair: opts.hair !== undefined ? opts.hair : choice(HAIR),
+    x: opts.x, y: opts.y, vx: 0, vy: 0,
+    hunger: rand(20, 40), thirst: rand(20, 40),
+    warmth: rand(60, 85), fear: rand(10, 25),
+    curiosity: opts.curiosity !== undefined ? opts.curiosity : rand(45, 90),
+    energy: rand(65, 95), health: 100,
+    age: opts.age !== undefined ? opts.age : 999,
+    knowledge: new Set(),        // known APPLICATIONS
+    beliefs: new Set(),          // grasped BELIEF ids
+    aptitude: opts.aptitude || choice(APTITUDES),   // natural specialization
+    drive: 55,                   // productive tension: comfort dulls it, crisis kills it
+    studyProgress: {},           // partial progress toward conceiving applications
+    learnProgress: {},           // partial progress in being taught
+    teachSession: null, learnSession: null,
+    derivedCaps: new Set(),
+    questions: [], questionTimer: rand(2, 8),
+    goal: "Explore", target: null, targetTimer: 0, wanderTimer: 0,
+    commit: null, searchTime: 0, snooze: {}, project: null,
+    experimentCooldown: rand(1, 4), shareCooldown: rand(3, 7),
+    reproTimer: rand(50, 90), fleeTimer: 0, fleeFrom: null,
+    hitCooldown: 0, resting: false, flashTimer: 0,
+  };
+}
+function spawnCreature(kind, x, y) {
+  const c = {
+    id: state.nextId++, kind, x, y, vx: 0, vy: 0,
+    hp: kind === "predator" ? 100 : 30, hunger: rand(0, 30),
+    reproTimer: rand(50, 80), retreat: 0, attackCooldown: 0,
+    wanderTimer: 0, phase: Math.random() * 6, leaving: false,
+  };
+  state.creatures.push(c);
+  return c;
+}
+function pointOnSide(side, w, h) {
+  for (let t = 0; t < 40; t++) {
+    const y = rand(50, h - 50);
+    const rx = riverXat(y);
+    const x = side === 0
+      ? rand(40, Math.max(60, rx - RIVER_HALF - 24))
+      : rand(Math.min(w - 60, rx + RIVER_HALF + 24), w - 40);
+    if (!riverBlocked(x, y)) return { x, y };
+  }
+  return { x: side === 0 ? 60 : w - 60, y: h / 2 };
+}
+
+function seedWorld() {
+  const w = canvas.clientWidth || 800, h = canvas.clientHeight || 500;
+  state.objects = []; state.agents = []; state.creatures = []; state.sites = [];
+  state.bridges = []; state.dam = null;
+  state.knowledge.clear(); state.observations = []; state.log = [];
+  state.tick = 0; state.time = 0; state.births = 0; state.deaths = 0;
+  state.taught = 0; state.lastAttack = -99;
+  state.predatorTimer = 55; state.colonyLost = false;
+  state.influence = INF_MAX; state.infTimer = 0; state.pitWary = 0;
+  state.adaptations = 0; state.lostApps = new Set();
+  state.rain = 50; state.flood = 0; state.drought = false;
+  state.huntKills = 0; state.spearWary = 0; state.grazerScarce = false;
+  nameCounter = 0; terrain = null;
+  for (const b of BELIEFS) { b.conf = 0; b.evidence = 0; b.lastObs = -99; b.firstBy = null; }
+
+  state.river = generateRiver(w, h);
+
+  const campY = h * 0.5;
+  const campX = Math.max(90, (riverXat(campY) - RIVER_HALF) * 0.5);
+  const fire = spawnObject("fire", campX, campY);
+  fire.fuel = 340;    // the founders' hearth is well-tended... at first
+  spawnObject("water", campX - 70, campY - 60);
+  spawnObject("stone", campX - 40, campY + 26);
+  spawnObject("stone", campX + 60, campY - 55);
+  spawnObject("stick", campX + 38, campY + 18);
+  spawnObject("stick", campX - 20, campY - 44);
+  spawnObject("berrybush", campX + 10, campY - 90);
+  spawnObject("berrybush", campX - 55, campY + 80);
+  spawnObject("berrybush", campX - 90, campY - 30);
+  spawnObject("tree", campX + 30, campY + 95);
+  spawnObject("tree", campX - 75, campY + 55);
+  const bankY = h * 0.42;
+  spawnObject("tree", riverXat(bankY) - RIVER_HALF - 34, bankY);
+
+  for (let i = 0; i < 2; i++) {
+    const p1 = pointOnSide(1, w, h); spawnObject("vine", p1.x, p1.y);
+    const p2 = pointOnSide(1, w, h); spawnObject("reed", p2.x, p2.y);
+    const p3 = pointOnSide(1, w, h); spawnObject("berrybush", p3.x, p3.y);
+    const p4 = pointOnSide(1, w, h); spawnObject("tree", p4.x, p4.y);
+  }
+  const pc = pointOnSide(1, w, h); spawnObject("clay", pc.x, pc.y);
+  const ps = pointOnSide(1, w, h); spawnObject("stone", ps.x, ps.y);
+  const bankY2 = h * 0.6;
+  spawnObject("tree", riverXat(bankY2) + RIVER_HALF + 34, bankY2);
+
+  for (let i = 0; i < FOUNDER_NAMES.length; i++) {
+    state.agents.push(makeAgent({
+      name: FOUNDER_NAMES[i], color: AGENT_COLORS[i], hair: HAIR[i % HAIR.length],
+      aptitude: APTITUDES[i % APTITUDES.length],
+      x: campX + rand(-60, 60), y: campY + rand(-60, 60),
+    }));
+  }
+  for (let i = 0; i < 2; i++) {
+    const g1 = pointOnSide(0, w, h); spawnCreature("grazer", g1.x, g1.y);
+    const g2 = pointOnSide(1, w, h); spawnCreature("grazer", g2.x, g2.y);
+  }
+  const pp = pointOnSide(1, w, h); spawnCreature("predator", pp.x, pp.y);
+  const pw = pointOnSide(0, w, h); spawnCreature("predator", pw.x, pw.y);
+
+  addLog("A river divides the world. " + FOUNDER_NAMES.length +
+    " founders camp on the west bank, full of questions.", "sys");
+  renderAll();
+}
+
+/* ============================================================
+   LOGGING
+   ============================================================ */
+function addLog(text, kind) {
+  state.log.unshift({ text, kind: kind || "sys", t: state.time });
+  if (state.log.length > LOG_LIMIT) state.log.pop();
+}
+
+/* ============================================================
+   QUESTIONS — directed curiosity
+   ============================================================ */
+function refreshQuestions(a) {
+  const active = QUESTION_DEFS.filter(q => q.active());
+  a.questions = [];
+  // a mind at perfect ease stops asking; keep at most one idle wondering
+  if (a.drive < 25 && Math.random() < 0.7) return;
+  // keep questions personal-ish: shuffle-pick up to 2
+  const pool = active.slice();
+  while (a.questions.length < Math.min(2, pool.length)) {
+    const q = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    a.questions.push(q.id);
+  }
+}
+function questionCaps(a) {
+  const caps = new Set();
+  for (const qid of a.questions) {
+    const q = QUESTION_DEFS.find(x => x.id === qid);
+    if (q) for (const c of q.caps) caps.add(c);
+  }
+  return caps;
+}
+function questionBeliefs(a) {
+  const ids = new Set();
+  for (const qid of a.questions) {
+    const q = QUESTION_DEFS.find(x => x.id === qid);
+    if (q) for (const b of q.beliefs) ids.add(b);
+  }
+  return ids;
+}
+
+/* ============================================================
+   AGENT BEHAVIOR (needs, hysteresis, threats — as v0.3)
+   ============================================================ */
+const GOAL_COLORS = {
+  "Eat": "#7fbf5a", "Drink": "#5aa9e0", "Warmth": "#e0705a",
+  "Safety": "#b07ae0", "Rest": "#e8d05a", "Explore": "#9fb2c4",
+  "Search": "#9fb2c4", "Flee!": "#e05a5a", "Hunt": "#e05a5a",
+  "Fish": "#5aa9e0", "Chop": "#c98b4a", "Build": "#e8a33d",
+  "Dig": "#b09a6a", "Fight!": "#e05a5a",
+  "Study": "#5fd4c4", "Teach": "#e8a33d", "Learn": "#a8c0d8", "Repair": "#c98b4a",
+};
+const CAP_TO_GOAL = { food: "Eat", drinkable: "Drink", hot: "Warmth", light: "Safety" };
+const SATISFIED = {
+  hunger: v => v < 25, thirst: v => v < 20, warmth: v => v > 75,
+  fear: v => v < 25, energy: v => v > 85,
+};
+function pickPressingNeed(a) {
+  const c = [];
+  const ok = need => !a.snooze[need] || state.time > a.snooze[need];
+  const push = item => { if (ok(item.need)) c.push(item); };
+  if (a.hunger > 55) push({ need: "hunger", score: a.hunger, cap: "food" });
+  if (a.thirst > 55) push({ need: "thirst", score: a.thirst + 5, cap: "drinkable" });
+  if (a.warmth < 40) push({ need: "warmth", score: Math.min(60, (100 - a.warmth) * 0.8), cap: "hot" });
+  if (a.fear > 60) push({ need: "fear", score: a.fear, cap: "light" });
+  if (a.energy < 20) push({ need: "energy", score: 100 - a.energy, cap: null });
+  if (!c.length) return null;
+  c.sort((p, q) => q.score - p.score);
+  return c[0];
+}
+function knowledgeEffect(a, key) {
+  let total = 0;
+  for (const name of a.knowledge) {
+    const app = APP_BY_NAME[name];
+    if (app && app.effects[key]) total += app.effects[key];
+  }
+  return total;
+}
+const armed = a => a.derivedCaps.has("hunting_tool");
+const carriesLight = a => a.derivedCaps.has("light");
+
+function findNeedTarget(a, cap) {
+  let best = null, bestD = Infinity;
+  const canCross = crossings().length > 0;
+  const mySide = sideOf(a.x, a.y);
+  for (const o of state.objects) {
+    const capOk = o.caps.includes(cap) ||
+      (cap === "food" && o.type === "storage" && (o.stock || 0) > 0) ||
+      (cap === "light" && o.type === "shelter");
+    if (!capOk) continue;
+    if (o.type === "berrybush" && o.berries <= 0) continue;
+    if (o.type === "meat" && o.meatLeft <= 0) continue;
+    const oSide = sideOf(o.x, o.y);
+    if (oSide !== mySide && !canCross) continue;
+    const d = dist(a, o) + (oSide !== mySide ? 380 : 0);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  if (cap === "drinkable") {
+    const rp = nearestRiverAccess(a);
+    if (rp && dist(a, rp) < bestD) { best = rp; bestD = dist(a, rp); }
+  }
+  if (cap === "food" && armed(a)) {
+    for (const c of state.creatures) {
+      if (c.kind !== "grazer") continue;
+      if (sideOf(c.x, c.y) !== mySide && !canCross) continue;
+      const d = dist(a, c) + 90;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+  }
+  if (cap === "food" && a.knowledge.has("Fishing")) {
+    const rp = nearestRiverAccess(a);
+    if (rp && dist(a, rp) + 60 < bestD) { best = rp; bestD = dist(a, rp) + 60; }
+  }
+  return best;
+}
+function movementTarget(a) {
+  const t = a.target;
+  if (!t) return null;
+  if (!state.river.length) return t;
+  if (sideOf(a.x, a.y) === sideOf(t.x, t.y)) return t;
+  const list = crossings();
+  if (!list.length) {
+    observe("water_separates", a);   // blocked: evidence that water separates
+    return null;
+  }
+  let best = null, bestD = Infinity;
+  for (const c of list) {
+    const d = dist(a, c);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return { x: best.x, y: best.y, r: 4 };
+}
+function nearestPredator(a, range) {
+  let best = null, bestD = range;
+  for (const c of state.creatures) {
+    if (c.kind !== "predator") continue;
+    const d = dist(a, c);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+function isSafeSpot(x, y) {
+  for (const o of state.objects) {
+    if ((o.type === "fire" || o.type === "shelter") && dist({ x, y }, o) < 48) return true;
+  }
+  return false;
+}
+function nearestSafety(a) {
+  let best = null, bestD = 240;
+  for (const o of state.objects) {
+    if (o.type !== "fire" && o.type !== "shelter") continue;
+    const d = dist(a, o);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+/* a spot is unbuildable if it's in the river or inside standing water */
+function badBuildSpot(x, y) {
+  if (riverBlocked(x, y)) return true;
+  for (const o of state.objects) {
+    if ((o.type === "water" || o.type === "lake") && dist({ x, y }, o) < o.r + 16)
+      return true;
+  }
+  return false;
+}
+function nearestOfType(t, x, y, sameSideAs) {
+  let best = null, bestD = Infinity;
+  for (const o of state.objects) {
+    if (o.type !== t) continue;
+    if (sameSideAs && sideOf(o.x, o.y) !== sideOf(sameSideAs.x, sameSideAs.y)
+        && !crossings().length) continue;
+    const d = Math.hypot(o.x - x, o.y - y);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+
+function chooseProject(a) {
+  const options = [];
+  if (a.derivedCaps.has("chopping") && countType("log") < 6) {
+    const tree = nearestOfType("tree", a.x, a.y, a);
+    if (tree) options.push({ kind: "chop", obj: tree });
+  }
+  for (const s of state.sites) {
+    const riverWork = s.kind === "bridge" || s.kind === "dam";
+    if (riverWork || reachableFrom(a, s.x, s.y)) {
+      options.push({ kind: "work", site: s });
+      break;
+    }
+  }
+  const siteKinds = new Set(state.sites.map(s => s.kind));
+  if (a.knowledge.has("Bridge") && !state.bridges.length && !siteKinds.has("bridge")
+      && countType("log") >= 2 && state.river.length) {
+    const i = riverIndexAt(a.y);
+    const p = state.river[clamp(i, 2, state.river.length - 3)];
+    const opt = { kind: "found", site: { kind: "bridge", x: p.x, y: p.y, index: i, progress: 0, need: 9, cost: { log: 2 } } };
+    options.push(opt, opt);
+  }
+  if (a.knowledge.has("Dam") && !state.dam && !siteKinds.has("dam")
+      && countType("log") >= 3 && state.river.length) {
+    const lo = Math.floor(state.river.length * 0.62);
+    const i = clamp(Math.max(riverIndexAt(a.y), lo), 4, state.river.length - 5);
+    const p = state.river[i];
+    options.push({ kind: "found", site: { kind: "dam", x: p.x, y: p.y, index: i, progress: 0, need: 13, cost: { log: 3 } } });
+  }
+  if (a.knowledge.has("Shelter") && countType("shelter") < 2 && !siteKinds.has("shelter")
+      && countType("log") >= 2) {
+    const fire = nearestOfType("fire", a.x, a.y, a);
+    const bx = fire ? fire.x + rand(-70, 70) : a.x + rand(-40, 40);
+    const by = fire ? fire.y + rand(-70, 70) : a.y + rand(-40, 40);
+    if (!badBuildSpot(bx, by))
+      options.push({ kind: "found", site: { kind: "shelter", x: bx, y: by, progress: 0, need: 7, cost: { log: 2 } } });
+  }
+  if (a.knowledge.has("Storage") && countType("storage") < 1 && !siteKinds.has("storage")
+      && countType("log") >= 2) {
+    const fire = nearestOfType("fire", a.x, a.y, a);
+    const bx = (fire ? fire.x : a.x) + rand(-60, 60);
+    const by = (fire ? fire.y : a.y) + rand(-60, 60);
+    if (!badBuildSpot(bx, by))
+      options.push({ kind: "found", site: { kind: "storage", x: bx, y: by, progress: 0, need: 6, cost: { log: 2 } } });
+  }
+  if (a.knowledge.has("Fire Circle") && countType("firecircle") < 1 && !siteKinds.has("firecircle")) {
+    const fire = nearestOfType("fire", a.x, a.y, a);
+    if (fire) {
+      const bx = fire.x + rand(-45, 45), by = fire.y + rand(-45, 45);
+      if (!badBuildSpot(bx, by))
+        options.push({ kind: "found", site: { kind: "firecircle", x: bx, y: by, progress: 0, need: 5, cost: { stick: 1 } } });
+    }
+  }
+  // repair what is failing, if you know how and wood is at hand
+  const repairTargets = [];
+  for (const b of state.bridges)
+    if (b.condition < 45 && a.knowledge.has("Bridge")) repairTargets.push([b, "bridge"]);
+  if (state.dam && state.dam.condition < 45 && a.knowledge.has("Dam"))
+    repairTargets.push([state.dam, "dam"]);
+  for (const o of state.objects)
+    if (o.condition !== undefined && o.condition < 45 &&
+        (o.type !== "shelter" || a.knowledge.has("Shelter")))
+      repairTargets.push([o, o.type]);
+  for (const [ref, refKind] of repairTargets) {
+    if (state.sites.some(s => s.ref === ref)) continue;
+    if (countType("log") < 1 && countType("stick") < 1) break;
+    const cost = countType("stick") >= 1 ? { stick: 1 } : { log: 1 };
+    options.push({ kind: "found", site: { kind: "repair", ref, refKind,
+      x: ref.x, y: ref.y, progress: 0, need: 4, cost } });
+    break;
+  }
+  if (a.derivedCaps.has("excavation") && countType("hole") < 2 && !siteKinds.has("hole")) {
+    const px = clamp(a.x + rand(-110, 110), 30, canvas.clientWidth - 30);
+    const py = clamp(a.y + rand(-110, 110), 30, canvas.clientHeight - 30);
+    if (!badBuildSpot(px, py) && sideOf(px, py) === sideOf(a.x, a.y))
+      options.push({ kind: "found", site: { kind: "hole", x: px, y: py, progress: 0, need: 4, cost: {} } });
+  }
+  if (!options.length) return null;
+  return choice(options);
+}
+
+function updateAgent(a, dt) {
+  a.age += dt;
+  a.hunger = clamp(a.hunger + dt * 0.55, 0, 100);
+  a.thirst = clamp(a.thirst + dt * (0.85 - knowledgeEffect(a, "thirstSlow") * 0.4), 0, 100);
+  a.warmth = clamp(a.warmth - dt * 0.45, 0, 100);
+  a.energy = clamp(a.energy + dt * (a.resting ? 6 : -0.6), 0, 100);
+  const fearDecay = knowledgeEffect(a, "fearDecay");
+  a.fear = clamp(a.fear + dt * (0.5 - fearDecay), 0, 100);
+  const fearCapEff = knowledgeEffect(a, "fearCap");
+  if (fearCapEff > 0) a.fear = Math.min(a.fear, 100 - fearCapEff);
+
+  if (a.hunger >= 100 || a.thirst >= 100) {
+    a.health -= dt * 1.7;
+    if (a.health <= 0) { killAgent(a, "starvation"); return; }
+  } else if (a.hunger < 55 && a.thirst < 55) {
+    a.health = clamp(a.health + dt * 0.8, 0, 100);   // wounds heal slowly
+  }
+
+  a.experimentCooldown -= dt; a.shareCooldown -= dt;
+  a.hitCooldown -= dt; a.reproTimer -= dt;
+  if (a.flashTimer > 0) a.flashTimer -= dt;
+
+  /* --- productive tension: the interesting space between comfort and crisis.
+     stress in the middle band feeds drive; too little OR too much starves it. --- */
+  const stress = Math.max(a.hunger, a.thirst + 5, (100 - a.warmth) * 0.8, a.fear);
+  let driveT;
+  if (stress < 25) driveT = 15 + (stress / 25) * 85;          // too comfortable
+  else if (stress <= 55) driveT = 100;                          // productive tension
+  else driveT = Math.max(8, 100 - (stress - 55) * 2.6);        // overwhelmed
+  a.drive += (driveT - a.drive) * dt * 0.06;
+
+  a.questionTimer -= dt;
+  if (a.questionTimer <= 0) { refreshQuestions(a); a.questionTimer = rand(15, 25); }
+
+  for (const o of state.objects) {
+    const d = dist(a, o);
+    if (o.type === "fire" && d < 60) {
+      a.warmth = clamp(a.warmth + dt * 8, 0, 100);
+      a.fear = clamp(a.fear - dt * 4, 0, 100);
+      if (d < 14) a.fear = clamp(a.fear + dt * 20, 0, 100);
+      // tending: feed a dying fire with wood at hand
+      if (o.fuel < 70 && Math.random() < dt * 0.4) {
+        let wood = null, wd = 130;
+        for (const s of state.objects) {
+          if (s.type !== "stick" && s.type !== "log") continue;
+          const sd = dist(o, s);
+          if (sd < wd) { wd = sd; wood = s; }
+        }
+        if (wood) {
+          removeObject(wood);
+          o.fuel += wood.type === "log" ? 170 : 100;
+          addLog(a.name + " fed the fire with " +
+            (wood.type === "log" ? "a log" : "sticks") + ".", "sys");
+        }
+      }
+    }
+    if (o.type === "storage" && d < 50 && a.hunger < 20 && (o.stock || 0) < 8
+        && Math.random() < dt * 0.08) {
+      o.stock = (o.stock || 0) + 1;
+    }
+    // casual grazing: a stocked hut means hunger rarely presses at all
+    if (o.type === "storage" && d < 50 && (o.stock || 0) > 0 && a.hunger > 25) {
+      a.hunger = clamp(a.hunger - dt * 7, 0, 100);
+      if (Math.random() < dt * 0.12) o.stock--;
+    }
+    if ((o.type === "water" || o.type === "lake") && d < 44 && a.thirst > 25) {
+      a.thirst = clamp(a.thirst - dt * 6, 0, 100);   // a passing sip
+    }
+    if (o.type === "shelter" && d < 55) {
+      const before = a.fear;
+      a.fear = clamp(a.fear - dt * 6, 0, 100);
+      a.warmth = clamp(a.warmth + dt * 4, 0, 100);
+      if (before > 50 && Math.random() < dt * 0.1) observe("shelter_calms", a);
+    }
+  }
+
+  /* ---- DROWNING: the river is not scenery. Deep water drains life
+     fast, faster in flood. The struggle in moveBlocked is the only out. ---- */
+  if (riverBlocked(a.x, a.y)) {
+    a.fear = clamp(a.fear + dt * 30, 0, 100);
+    a.health -= dt * (6 + state.flood * 9);
+    endSession(a);
+    if (a.health <= 0) { killAgent(a, "drowned"); return; }
+  }
+
+  // active teaching happens before anything else can distract
+  if (a.teachSession) { conductTeaching(a, dt); if (a.teachSession) { moveBlocked(a, dt, 8); return; } }
+  if (a.learnSession) {
+    if (!state.agents.includes(a.learnSession.teacher) ||
+        a.learnSession.teacher.teachSession === null) a.learnSession = null;
+    else { a.goal = "Learn"; a.vx *= 0.7; a.vy *= 0.7; moveBlocked(a, dt, 8); return; }
+  }
+
+  const threat = nearestPredator(a, armed(a) ? 45 : 60);
+  if (threat) {
+    if (armed(a)) {
+      a.goal = "Fight!"; a.target = null; a.project = null;
+      const d = dist(a, threat);
+      if (d > 15) {
+        a.vx = ((threat.x - a.x) / d) * 46;
+        a.vy = ((threat.y - a.y) / d) * 46;
+      } else if (a.hitCooldown <= 0) {
+        a.hitCooldown = 1.2;
+        threat.hp -= 35;
+        threat.retreat = 4;
+        const rm = Math.hypot(threat.x - a.x, threat.y - a.y) || 1;
+        threat.vx = ((threat.x - a.x) / rm) * 50;
+        threat.vy = ((threat.y - a.y) / rm) * 50;
+        observe("reach_extends", a, "The spear kept the beast at arm's length and further.");
+        state.spearWary = 45;   // predators learn: armed prey isn't worth it
+        if (threat.hp <= 0) {
+          removeCreature(threat);
+          spawnObject("meat", threat.x, threat.y).meatLeft = 4;
+          addLog(a.name + " slew the predator! Its meat feeds the camp.", "discovery");
+        }
+      }
+      moveBlocked(a, dt, 8);
+      return;
+    }
+    a.fleeTimer = 1.2; a.fleeFrom = threat;
+  }
+
+  if (a.fleeTimer > 0) {
+    endSession(a);
+    if (a.learnSession) { endSession(a.learnSession.teacher); a.learnSession = null; }
+    a.fleeTimer -= dt;
+    a.goal = "Flee!";
+    a.fear = clamp(a.fear + dt * 15, 0, 100);
+    let dirX, dirY;
+    const safe = nearestSafety(a);
+    if (safe) { dirX = safe.x - a.x; dirY = safe.y - a.y; }
+    else if (a.fleeFrom) { dirX = a.x - a.fleeFrom.x; dirY = a.y - a.fleeFrom.y; }
+    else { dirX = rand(-1, 1); dirY = rand(-1, 1); }
+    const m = Math.hypot(dirX, dirY) || 1;
+    a.vx = (dirX / m) * 58; a.vy = (dirY / m) * 58;
+    moveBlocked(a, dt, 8);
+    return;
+  }
+
+  if (a.commit && SATISFIED[a.commit.need](a[a.commit.need])) {
+    a.commit = null; a.target = null; a.searchTime = 0;
+  }
+  const trigger = pickPressingNeed(a);
+  if (trigger && !a.commit) { a.commit = trigger; a.project = null; }
+  else if (trigger && a.commit && trigger.need !== a.commit.need && trigger.score > 85) {
+    a.commit = trigger; a.project = null;
+  }
+  const pressing = a.commit;
+
+  if (pressing && pressing.need === "energy") {
+    a.resting = true; a.goal = "Rest"; a.target = null;
+  } else if (pressing && a.project && a.project.site && a.project.site.kind === "fire") {
+    // making a fire IS how this agent is solving its warmth need
+    a.resting = false;
+    runProject(a, dt);
+  } else if (pressing) {
+    a.resting = false;
+    const obj = findNeedTarget(a, pressing.cap);
+    if (obj) {
+      a.searchTime = 0;
+      a.target = obj;
+      a.goal = (obj.kind === "grazer") ? "Hunt"
+        : (obj.isRiver && pressing.cap === "food") ? "Fish"
+        : CAP_TO_GOAL[pressing.cap] || "Search";
+    } else if (pressing.need === "warmth" && a.knowledge.has("Fire Craft")
+        && !state.sites.some(s => s.kind === "fire") && !badBuildSpot(a.x, a.y)) {
+      // no fire anywhere — but this agent knows how to make one
+      const s = { kind: "fire", x: a.x, y: a.y, progress: 0, need: 3, cost: { stick: 1 } };
+      state.sites.push(s);
+      a.project = { kind: "work", site: s };
+      addLog(a.name + " kneels to coax a new fire from friction.", "sys");
+    } else {
+      a.goal = "Search"; a.target = null;
+      a.searchTime += dt;
+      if (a.searchTime > 15) {   // give up on the unmeetable, for now
+        a.snooze[pressing.need] = state.time + 25;
+        a.commit = null; a.searchTime = 0;
+        a.fear = clamp(a.fear + 8, 0, 100);
+      }
+      wander(a, dt);
+    }
+  } else {
+    a.resting = false;
+    if (!a.project && Math.random() < dt * 0.5) {
+      a.project = chooseProject(a);
+      if (a.project && a.project.kind === "found") {
+        state.sites.push(a.project.site);
+        a.project = { kind: "work", site: a.project.site };
+        addLog("Construction begins: " + a.project.site.kind + ".", "sys");
+      }
+      if (a.project) a.target = null;
+    }
+    if (a.project) {
+      runProject(a, dt);
+    } else {
+      a.goal = "Explore";
+      a.targetTimer -= dt;
+      if (!a.target || a.targetTimer <= 0) {
+        a.target = pickCuriosityTarget(a);
+        a.targetTimer = rand(4, 9);
+      }
+      if (!a.target && a.age < 90 && Math.random() < 0.5) {
+        const fc = nearestOfType("firecircle", a.x, a.y, a);
+        if (fc) a.target = fc;   // children drift toward the teaching fire
+      }
+      if (!a.target) wander(a, dt);
+    }
+  }
+
+  if (a.target && !a.resting) {
+    const eff = movementTarget(a);
+    if (!eff) a.target = null;
+    else {
+      const d = dist(a, eff);
+      const stopAt = (eff.r || 0) + INTERACT_R * 0.55;
+      if (d > stopAt) {
+        const sp = 34 * (0.5 + a.energy / 200) * (0.6 + a.health / 250);
+        a.vx = ((eff.x - a.x) / d) * sp;
+        a.vy = ((eff.y - a.y) / d) * sp;
+      } else {
+        a.vx *= 0.8; a.vy *= 0.8;
+        if (eff === a.target || a.target.isRiver) interact(a, dt);
+      }
+    }
+  }
+  moveBlocked(a, dt, 8);
+
+  if (a.experimentCooldown <= 0 && !a.resting) {
+    tryExperiment(a);
+    a.experimentCooldown = rand(2.5, 6) * (1.4 - a.curiosity / 150);
+  }
+  if (a.shareCooldown <= 0) { tryShare(a); a.shareCooldown = rand(6, 11); }
+}
+
+function wander(a, dt) {
+  a.wanderTimer -= dt;
+  if (a.wanderTimer <= 0) {
+    const ang = Math.random() * Math.PI * 2;
+    const sp = rand(12, 26);
+    a.vx = Math.cos(ang) * sp; a.vy = Math.sin(ang) * sp;
+    a.wanderTimer = rand(1.5, 4);
+  }
+}
+
+/* curiosity is directed: junctions containing capabilities that
+   relate to the agent's open questions score higher */
+function pickCuriosityTarget(a) {
+  const objs = state.objects.filter(o => reachableFrom(a, o.x, o.y));
+  if (!objs.length) return null;
+  const qCaps = questionCaps(a);
+  const junctions = [];
+  for (let i = 0; i < objs.length; i++) {
+    for (let j = i + 1; j < objs.length; j++) {
+      if (objs[i].type === objs[j].type) continue;
+      if (dist(objs[i], objs[j]) < EXPERIMENT_R * 1.8) {
+        const jx = (objs[i].x + objs[j].x) / 2, jy = (objs[i].y + objs[j].y) / 2;
+        if (riverBlocked(jx, jy)) continue;
+        let score = 1;
+        for (const c of objs[i].caps) if (qCaps.has(c)) score += 2;
+        for (const c of objs[j].caps) if (qCaps.has(c)) score += 2;
+        junctions.push({ x: jx, y: jy, r: 0, score });
+      }
+    }
+  }
+  if (junctions.length && Math.random() < 0.35 + a.curiosity / 200) {
+    // weighted pick by question relevance
+    let total = 0;
+    for (const j of junctions) total += j.score;
+    let roll = Math.random() * total;
+    for (const j of junctions) { roll -= j.score; if (roll <= 0) return j; }
+    return junctions[junctions.length - 1];
+  }
+  if (Math.random() < a.curiosity / 110) return choice(objs);
+  return null;
+}
+
+function interact(a, dt) {
+  const o = a.target;
+  if (!o) return;
+  if (o.kind === "grazer") {
+    if (dist(a, o) < 14 && armed(a)) {
+      removeCreature(o);
+      const m = spawnObject("meat", o.x, o.y);
+      addLog(a.name + " hunted a grazer.", "share");
+      state.huntKills++;
+      a.target = m;
+    }
+    return;
+  }
+  if (o.isRiver) {
+    if (a.thirst > 10) a.thirst = clamp(a.thirst - dt * 22, 0, 100);
+    if (a.knowledge.has("Fishing") && a.hunger > 10)
+      a.hunger = clamp(a.hunger - dt * 9, 0, 100);
+    return;
+  }
+  if (!o.caps) return;
+  if (o.type === "storage" && (o.stock || 0) > 0 && a.hunger > 10) {
+    a.hunger = clamp(a.hunger - dt * 26, 0, 100);
+    if (Math.random() < dt * 0.5) o.stock--;
+    return;
+  }
+  if (o.caps.includes("food") && a.hunger > 10) {
+    const bonus = knowledgeEffect(a, "eatBonus");
+    if (o.type === "berrybush" && o.berries > 0) {
+      a.hunger = clamp(a.hunger - dt * 17 * (1 + bonus), 0, 100);
+      if (Math.random() < dt * 0.5) {
+        o.berries--;
+        if (o.berries <= 0) {
+          o.harvests = (o.harvests || 0) + 1;
+          o.regrowTimer = Math.min(32, 12 + o.harvests * 3);
+        }
+      }
+      if (Math.random() < dt * knowledgeEffect(a, "forageBonus"))
+        a.hunger = clamp(a.hunger - 4, 0, 100);
+    } else if (o.type === "meat" && o.meatLeft > 0) {
+      a.hunger = clamp(a.hunger - dt * 24 * (1 + bonus), 0, 100);
+      if (Math.random() < dt * 0.6) o.meatLeft--;
+      if (bonus > 0.5 && Math.random() < dt * 0.08)
+        observe("fire_transforms", a, "Cooked meat fed " + a.name + " far longer than raw.");
+    }
+  }
+  if (o.caps.includes("drinkable") && a.thirst > 10) {
+    const bonus = knowledgeEffect(a, "drinkBonus");
+    a.thirst = clamp(a.thirst - dt * 22 * (1 + bonus), 0, 100);
+  }
+}
+
+/* ============================================================
+   PROJECTS — applications acting on the world
+   ============================================================ */
+function runProject(a, dt) {
+  const p = a.project;
+  if (p.kind === "study") {
+    a.goal = "Study";
+    a.target = { x: p.x, y: p.y, r: 4 };
+    if (dist(a, a.target) < 30) {
+      a.vx *= 0.8; a.vy *= 0.8;
+      const rate = a.aptitude === "seeker" ? 1.5 : 1;
+      const key = p.app.name;
+      a.studyProgress[key] = (a.studyProgress[key] || 0) + dt * rate;
+      if (a.studyProgress[key] >= 8) {
+        // the idea only lands if the situation still holds together
+        const pool = gatherPool(a);
+        if (p.app.caps.every(c => pool.has(c))) {
+          learnApplication(a, p.app);
+          const gateNames = Object.keys(p.app.beliefs).map(id => BELIEF_BY_ID[id].name);
+          addLog(a.name + " conceived " + p.app.name + " after long study" +
+            (gateNames.length ? " — built on: " + gateNames.join(", ") + "." : "."), "discovery");
+          if (state.lostApps && state.lostApps.has(p.app.name)) {
+            state.adaptations++;   // re-discovery after loss is adaptation
+            state.lostApps.delete(p.app.name);
+          }
+        } else {
+          delete a.studyProgress[key];   // the moment passed
+        }
+        a.project = null; a.target = null;
+      }
+    }
+    return;
+  }
+  if (p.kind === "chop") {
+    const tree = p.obj;
+    if (!state.objects.includes(tree)) { a.project = null; return; }
+    a.goal = "Chop"; a.target = tree;
+    if (dist(a, tree) < INTERACT_R) {
+      tree.chop += dt;
+      if (tree.chop >= 3) {
+        removeObject(tree);
+        spawnObject("log", tree.x + rand(-14, 14), tree.y + rand(6, 16));
+        spawnObject("log", tree.x + rand(-14, 14), tree.y + rand(-16, -6));
+        addLog(a.name + " chopped a tree into logs.", "share");
+        observe("sharp_cuts", a, "The axe felled in minutes what hands never could.");
+        a.project = null; a.target = null;
+      }
+    }
+    return;
+  }
+  if (p.kind === "work") {
+    const s = p.site;
+    if (!state.sites.includes(s)) { a.project = null; a.target = null; return; }
+    a.goal = (s.kind === "hole") ? "Dig" : "Build";
+    a.target = { x: s.x + (s.kind === "bridge" || s.kind === "dam"
+      ? (RIVER_HALF + 6) * (sideOf(a.x, a.y) === 0 ? -1 : 1) : 0), y: s.y, r: 4 };
+    if (dist(a, a.target) < 26) {
+      s.progress += dt;
+      if (s.progress >= s.need) completeSite(s);
+    }
+  }
+}
+function completeSite(s) {
+  state.sites = state.sites.filter(x => x !== s);
+  state.adaptations++;
+  for (const [type, n] of Object.entries(s.cost || {})) {
+    for (let i = 0; i < n; i++) {
+      const o = nearestOfType(type, s.x, s.y, null);
+      if (o) removeObject(o);
+    }
+  }
+  for (const a of state.agents) {
+    if (a.project && a.project.site === s) { a.project = null; a.target = null; }
+  }
+  if (s.kind === "repair") {
+    s.ref.condition = 100;
+    addLog("The " + s.refKind + " has been repaired and stands sound again.", "share");
+  } else if (s.kind === "bridge") {
+    state.bridges.push({ x: s.x, y: s.y, index: s.index, condition: 100 });
+    addLog("The bridge is complete. The far bank is open.", "discovery");
+  } else if (s.kind === "dam") {
+    state.dam = { x: s.x, y: s.y, index: s.index, condition: 100 };
+    const li = clamp(s.index - 3, 0, state.river.length - 1);
+    spawnObject("lake", state.river[li].x, state.river[li].y);
+    addLog("The river is dammed — a lake rises above; the bed below runs dry.", "discovery");
+    observe("heavy_blocks", null, "Weight and timber stopped a whole river.");
+  } else if (s.kind === "shelter") {
+    spawnObject("shelter", s.x, s.y).condition = 100;
+    addLog("A shelter now stands. Fear has somewhere to stop.", "discovery");
+  } else if (s.kind === "hole") {
+    spawnObject("hole", s.x, s.y);
+    addLog("A pit has been dug.", "sys");
+    observe("earth_shapes", null, "The dug pit stayed dug.");
+  } else if (s.kind === "storage") {
+    const o = spawnObject("storage", s.x, s.y);
+    o.condition = 100; o.stock = 0;
+    addLog("A storage hut stands ready for surplus.", "discovery");
+  } else if (s.kind === "firecircle") {
+    spawnObject("firecircle", s.x, s.y).condition = 100;
+    addLog("A fire circle is laid — a place made for teaching.", "discovery");
+  } else if (s.kind === "fire") {
+    spawnObject("fire", s.x, s.y).fuel = 160;
+    addLog("A new fire crackles to life, far from the old one.", "discovery");
+  }
+}
+
+/* ============================================================
+   EXPERIMENTS: observation first, conception second
+   ============================================================ */
+function gatherPool(a) {
+  const pool = new Set(a.derivedCaps);
+  for (const o of state.objects) {
+    if (dist(a, o) <= EXPERIMENT_R + o.r) for (const c of o.caps) pool.add(c);
+  }
+  if (nearRiver(a)) for (const c of RIVER_CAPS) pool.add(c);
+  return pool;
+}
+function tryExperiment(a) {
+  const pool = gatherPool(a);
+  const byRiver = nearRiver(a);
+  if (!pool.size) return;
+
+  /* --- 1. most experiments only produce OBSERVATIONS --- */
+  const qBeliefs = questionBeliefs(a);
+  const candidates = [];
+  for (const b of BELIEFS) {
+    if (!b.caps || b.conf >= 100) continue;
+    if (b.nearRiver && !byRiver) continue;
+    if (!b.caps.every(c => pool.has(c))) continue;
+    // question-directed attention: relevant beliefs weigh triple
+    candidates.push({ b, w: qBeliefs.has(b.id) ? 3 : 1 });
+  }
+  if (candidates.length && Math.random() < (0.2 + a.curiosity / 350) * (0.25 + a.drive / 110)) {
+    let total = 0;
+    for (const c of candidates) total += c.w;
+    let roll = Math.random() * total;
+    for (const c of candidates) {
+      roll -= c.w;
+      if (roll <= 0) { observe(c.b.id, a); break; }
+    }
+  }
+
+  /* --- 2. conception: beliefs + situation make an application
+         thinkable. The colony must believe enough, and this agent
+         must personally grasp at least one of the needed beliefs. --- */
+  const ready = APPLICATIONS.filter(app => {
+    if (a.knowledge.has(app.name)) return false;
+    if (!app.caps.every(c => pool.has(c))) return false;
+    const gates = Object.entries(app.beliefs);
+    if (!gates.length) return true;
+    if (!gates.every(([id, min]) => BELIEF_BY_ID[id].conf >= min)) return false;
+    return gates.some(([id]) => a.beliefs.has(id));
+  });
+  if (!ready.length) return;
+  // conception is never instant: it becomes a STUDY project — time spent
+  // at the site, interruptible by hunger, thirst, predators, exhaustion
+  if (a.project) return;
+  if (a.energy < 30 || a.health < 50 || a.drive < 30) return;
+  if (Math.random() > (0.22 + a.curiosity / 260) * (0.3 + a.drive / 100)) return;
+
+  const app = choice(ready);
+  a.project = { kind: "study", app, x: a.x, y: a.y };
+  if (Math.random() < 0.5)
+    addLog(a.name + " settles in to study — something is almost thinkable.", "sys");
+}
+
+function learnApplication(a, app) {
+  a.knowledge.add(app.name);
+  for (const c of app.grants) a.derivedCaps.add(c);
+  a.flashTimer = 1.2;
+  if (!state.knowledge.has(app.name)) {
+    state.knowledge.set(app.name, { app, by: a.name, tick: state.tick, time: state.time });
+  }
+}
+
+/* ---- TEACHING: purposeful, slow, interruptible ----
+   A teacher and a willing student stand together. Progress accrues on
+   the student and survives interruption. Willingness matters: children
+   absorb anything; adults only learn what their questions or their
+   aptitude makes them care about. Knowledge spreads like culture,
+   not like files copying. */
+function wantsToLearn(b, type, key) {
+  if (b.age < 90) return true;                       // children soak it up
+  if (type === "belief") return questionBeliefs(b).has(key);
+  const app = APP_BY_NAME[key];
+  if (Object.keys(app.beliefs).some(id => questionBeliefs(b).has(id))) return true;
+  if ((APT_TAGS[b.aptitude] || []).includes(app.tag)) return true;
+  return b.aptitude === "seeker" && Math.random() < 0.3;
+}
+function nearFireCircle(a) {
+  for (const o of state.objects) {
+    if (o.type !== "firecircle" || dist(a, o) > 80) continue;
+    for (const f of state.objects)
+      if (f.type === "fire" && dist(o, f) < 80) return true;   // needs a live fire
+  }
+  return false;
+}
+function endSession(t) {
+  if (t.teachSession) {
+    const s = t.teachSession.student;
+    if (s) s.learnSession = null;
+    t.teachSession = null;
+  }
+}
+function conductTeaching(t, dt) {
+  const s = t.teachSession;
+  const b = s.student;
+  // interruption: distance, danger, or a pressing need on either side
+  if (!state.agents.includes(b) || dist(t, b) > SHARE_R + 14 ||
+      t.fleeTimer > 0 || b.fleeTimer > 0 ||
+      pickPressingNeed(t) || pickPressingNeed(b)) {
+    endSession(t);                       // progress stays on the student
+    return;
+  }
+  t.goal = "Teach"; b.goal = "Learn";
+  t.vx *= 0.7; t.vy *= 0.7; b.vx *= 0.7; b.vy *= 0.7;
+  const rate = (t.aptitude === "keeper" ? 1.5 : 1) * (nearFireCircle(t) ? 2 : 1);
+  b.learnProgress[s.key] = (b.learnProgress[s.key] || 0) + dt * rate;
+  const need = s.type === "belief" ? 4 : 7;
+  if (b.learnProgress[s.key] >= need) {
+    delete b.learnProgress[s.key];
+    state.taught++;
+    if (s.type === "belief") {
+      b.beliefs.add(s.key);
+      BELIEF_BY_ID[s.key].conf = clamp(BELIEF_BY_ID[s.key].conf + 1, 0, 100);
+      if (Math.random() < 0.35)
+        addLog(t.name + " taught " + b.name + " the belief \u201C" +
+          BELIEF_BY_ID[s.key].name + "\u201D.", "share");
+    } else {
+      learnApplication(b, APP_BY_NAME[s.key]);
+      addLog(t.name + " taught " + s.key + " to " + b.name + ".", "share");
+    }
+    if (Math.random() < 0.35) observe("teaching", t);   // the teacher grasps it
+    endSession(t);
+  }
+}
+function tryShare(a) {
+  if (a.teachSession || a.learnSession) return;
+  if (!a.beliefs.size && !a.knowledge.size) return;
+  if (a.commit || a.fleeTimer > 0 || a.resting) return;
+  for (const b of state.agents) {
+    if (b === a || b.teachSession || b.learnSession) continue;
+    if (b.commit || b.fleeTimer > 0 || b.resting) continue;
+    if (dist(a, b) > SHARE_R) continue;
+    const tb = [...a.beliefs].filter(id => !b.beliefs.has(id) && wantsToLearn(b, "belief", id));
+    const ta = [...a.knowledge].filter(k => !b.knowledge.has(k) && wantsToLearn(b, "app", k));
+    let type = null, key = null;
+    if (tb.length && (Math.random() < 0.55 || !ta.length)) { type = "belief"; key = choice(tb); }
+    else if (ta.length) { type = "app"; key = choice(ta); }
+    if (!type) continue;
+    a.teachSession = { student: b, type, key };
+    b.learnSession = { teacher: a };
+    b.project = null; b.target = null;
+    a.project = null; a.target = null;
+    return;
+  }
+}
+
+/* ============================================================
+   LIFE AND DEATH — beliefs live in living minds
+   ============================================================ */
+function killAgent(a, cause) {
+  endSession(a);
+  if (a.learnSession && a.learnSession.teacher) endSession(a.learnSession.teacher);
+  state.agents = state.agents.filter(x => x !== a);
+  state.deaths++;
+  for (const name of a.knowledge)
+    if (!state.agents.some(x => x.knowledge.has(name))) state.lostApps.add(name);
+  const sole = [...a.beliefs].filter(id => graspers(id) === 0);
+  addLog(a.name + " has died (" + cause + ")" +
+    (sole.length ? " — " + sole.length + " belief" + (sole.length > 1 ? "s" : "") +
+      " now live in no mind at all." : "."), "discovery");
+  if (sole.length) observe("knowledge_mortal",
+    state.agents.length ? choice(state.agents) : null,
+    "What " + a.name + " understood went quiet with them.");
+  if (!state.agents.length && !state.colonyLost) {
+    state.colonyLost = true;
+    addLog("The colony has been lost. Its beliefs fade from the world. (Reset to try again.)", "discovery");
+  }
+}
+function tryReproduce() {
+  if (state.agents.length >= POP_CAP) return;
+  for (const a of state.agents) {
+    if (a.reproTimer > 0 || a.age < 60) continue;
+    if (a.hunger > 32 || a.thirst > 32 || a.fear > 35 || a.health < 80) continue;
+    for (const b of state.agents) {
+      if (b === a || b.reproTimer > 0 || b.age < 60) continue;
+      if (b.hunger > 32 || b.thirst > 32 || b.fear > 35 || b.health < 80) continue;
+      if (dist(a, b) > 40) continue;
+      const child = makeAgent({
+        name: nextChildName(),
+        color: AGENT_COLORS[(state.births + FOUNDER_NAMES.length) % AGENT_COLORS.length],
+        x: (a.x + b.x) / 2 + rand(-10, 10), y: (a.y + b.y) / 2 + rand(-10, 10),
+        curiosity: clamp((a.curiosity + b.curiosity) / 2 + rand(-15, 15), 25, 100),
+        aptitude: Math.random() < 0.5 ? choice([a.aptitude, b.aptitude]) : choice(APTITUDES),
+        age: 0,
+      });
+      state.agents.push(child);
+      state.births++;
+      a.reproTimer = rand(140, 220); b.reproTimer = rand(140, 220);
+      addLog(a.name + " and " + b.name + " welcomed " + child.name + ".", "discovery");
+      observe("knowledge_mortal", a, child.name + " was born knowing nothing.");
+      return;
+    }
+  }
+}
+
+/* ============================================================
+   CREATURES
+   ============================================================ */
+function removeCreature(c) { state.creatures = state.creatures.filter(x => x !== c); }
+function removeObject(o) { state.objects = state.objects.filter(x => x !== o); }
+
+function updateCreature(c, dt) {
+  c.phase += dt * 4;
+  if (riverBlocked(c.x, c.y)) {
+    c.hp -= dt * 10;
+    if (c.hp <= 0) {
+      removeCreature(c);
+      if (Math.random() < 0.3)
+        addLog("A " + (c.kind === "grazer" ? "grazer" : "predator") +
+          " was swept away by the river.", "sys");
+      return;
+    }
+  }
+  if (c.kind === "grazer") {
+    let threat = null, tD = Infinity;
+    for (const a of state.agents) {
+      const d = dist(c, a);
+      if (d < 65 && d < tD) { threat = a; tD = d; }
+    }
+    for (const p of state.creatures) {
+      if (p.kind !== "predator") continue;
+      const d = dist(c, p);
+      if (d < 100 && d < tD) { threat = p; tD = d; }
+    }
+    if (threat) {
+      const m = Math.hypot(c.x - threat.x, c.y - threat.y) || 1;
+      c.vx = ((c.x - threat.x) / m) * 56;
+      c.vy = ((c.y - threat.y) / m) * 56;
+    } else {
+      c.wanderTimer -= dt;
+      if (c.wanderTimer <= 0) {
+        const ang = Math.random() * Math.PI * 2;
+        c.vx = Math.cos(ang) * 24; c.vy = Math.sin(ang) * 24;
+        c.wanderTimer = rand(1.5, 4);
+      }
+    }
+    // pit traps — but grazers grow wary after witnessing losses
+    if (state.knowledge.has("Pit Trap")) {
+      for (const o of state.objects) {
+        if (o.type !== "hole" || o.trapCooldown > 0) continue;
+        if (dist(c, o) < 13) {
+          if (state.pitWary > 0 && Math.random() > 0.25) {
+            const m = Math.hypot(c.x - o.x, c.y - o.y) || 1;
+            c.vx = ((c.x - o.x) / m) * 50; c.vy = ((c.y - o.y) / m) * 50;
+            continue;
+          }
+          removeCreature(c);
+          spawnObject("meat", o.x, o.y);
+          o.trapCooldown = 25;
+          state.pitWary = 70;
+          state.huntKills++;
+          o.uses = (o.uses || 0) + 1;
+          if (o.uses >= 3) {   // traps wear out
+            removeObject(o);
+            addLog("The overused pit caved in.", "sys");
+          }
+          addLog("A grazer fell into the pit trap. The others watched.", "share");
+          observe("tension_stores", null, "The hidden pit did its waiting well.");
+          return;
+        }
+      }
+    }
+    c.reproTimer -= dt;
+    if (c.reproTimer <= 0) {
+      c.reproTimer = rand(50, 85) * (state.grazerScarce ? 2 : 1) * (state.drought ? 1.6 : 1);
+      const n = state.creatures.filter(x => x.kind === "grazer").length;
+      if (n < GRAZER_CAP) {
+        const gx = c.x + rand(-20, 20), gy = c.y + rand(-20, 20);
+        if (!riverBlocked(gx, gy)) spawnCreature("grazer", gx, gy);
+      }
+    }
+    moveBlocked(c, dt, 6);
+    return;
+  }
+
+  /* predator */
+  c.hunger += dt * 1.1;
+  c.attackCooldown -= dt;
+  if (c.hunger > 95) c.leaving = true;
+  if (c.leaving) {
+    const w = canvas.clientWidth;
+    const ex = c.x < w / 2 ? -30 : w + 30;
+    const m = Math.hypot(ex - c.x, 20 - c.y) || 1;
+    c.vx = ((ex - c.x) / m) * 40; c.vy = ((20 - c.y) / m) * 40;
+    moveBlocked(c, dt, 8);
+    if (c.x < 5 || c.x > w - 5 || c.y < 5) {
+      removeCreature(c);
+      addLog("The predator gives up and slinks back into the wilderness.", "sys");
+    }
+    return;
+  }
+  if (c.retreat > 0) { c.retreat -= dt; moveBlocked(c, dt, 8); return; }
+
+  let prey = null, pD = Infinity;
+  for (const g of state.creatures) {
+    if (g.kind !== "grazer") continue;
+    const d = dist(c, g);
+    if (d < 240 && d < pD) { prey = g; pD = d; }
+  }
+  // hungry predators stalk people too — nearest target wins; only fire,
+  // torchlight, or a fearsome spear record deters them
+  const agentHungerBar = state.agents.length >= 10 ? 35 : 45;
+  if (c.hunger > agentHungerBar && state.spearWary <= 0) {
+    for (const a of state.agents) {
+      if (isSafeSpot(a.x, a.y) || carriesLight(a)) continue;
+      const d = dist(c, a);
+      if (d < 260 && d < pD) { prey = a; pD = d; }
+    }
+  }
+  if (prey && c.hunger > 25) {
+    if (prey.knowledge && (isSafeSpot(prey.x, prey.y) || carriesLight(prey))) {
+      c.retreat = 2;
+      observe("fire_scares", null);
+    } else {
+      const m = Math.hypot(prey.x - c.x, prey.y - c.y) || 1;
+      // the lunge: a closing predator bursts to striking speed, so a
+      // fleeing agent can actually be caught away from the fire
+      const spd = pD < 46 ? 98 : 62;
+      c.vx = ((prey.x - c.x) / m) * spd;
+      c.vy = ((prey.y - c.y) / m) * spd;
+      if (pD < 14) {
+        if (prey.knowledge) {
+          if (c.attackCooldown <= 0) {
+            c.attackCooldown = 2.5;
+            prey.health -= 30;
+            prey.fear = clamp(prey.fear + 45, 0, 100);
+            prey.fleeTimer = 2.5; prey.fleeFrom = c;
+            c.hunger = Math.max(0, c.hunger - 30);
+            c.retreat = 3.5;
+            state.lastAttack = state.time;
+            const rm = Math.hypot(c.x - prey.x, c.y - prey.y) || 1;
+            c.vx = ((c.x - prey.x) / rm) * 45; c.vy = ((c.y - prey.y) / rm) * 45;
+            addLog("A predator attacked " + prey.name + "!", "discovery");
+            if (prey.health <= 0) killAgent(prey, "predator");
+            else if (prey.health < 50)
+              addLog(prey.name + " is badly wounded and moves slowly.", "discovery");
+          }
+        } else {
+          removeCreature(prey);
+          spawnObject("meat", prey.x, prey.y).meatLeft = 1;
+          c.hunger = 25; c.retreat = 2.5;   // a grazer only takes the edge off
+        }
+      }
+    }
+  } else {
+    c.wanderTimer -= dt;
+    if (c.wanderTimer <= 0) {
+      const ang = Math.random() * Math.PI * 2;
+      c.vx = Math.cos(ang) * 20; c.vy = Math.sin(ang) * 20;
+      c.wanderTimer = rand(2, 5);
+    }
+  }
+  moveBlocked(c, dt, 8);
+}
+
+/* ============================================================
+   ECOLOGY — the world acts without the player
+   ============================================================ */
+function updateObjects(dt) {
+  for (const o of state.objects.slice()) {
+    o.phase += dt * 3;
+    if (o.trapCooldown > 0) o.trapCooldown -= dt;
+
+    if (o.type === "berrybush" && o.berries <= 0) {
+      o.regrowTimer -= dt * (state.drought ? 0.5 : 1);
+      if (o.regrowTimer <= 0) o.berries = 7;
+    }
+    // heavily-picked bushes take longer each time; they recover when rested
+    if (o.type === "berrybush" && (o.harvests || 0) > 0 && Math.random() < dt / 60)
+      o.harvests--;
+    if (o.type === "storage" && (o.stock || 0) > 0) {
+      o.spoil = (o.spoil || 0) + dt;
+      if (o.spoil >= 35) { o.spoil = 0; o.stock--; }   // stores spoil slowly
+    }
+    if (o.type === "meat") {
+      o.decay -= dt;
+      if (o.decay <= 0 || o.meatLeft <= 0) removeObject(o);
+    }
+    if (o.type === "fire") {
+      o.fuel -= dt;
+      if (o.fuel <= 0) {
+        removeObject(o);
+        addLog("A fire burned down to cold ash.", "sys");
+        continue;
+      }
+      // fire can spread to dry wood beside it
+      if (countType("fire") < 6 && Math.random() < dt * 0.012) {
+        for (const w of state.objects) {
+          if ((w.type === "stick" || w.type === "log" || w.type === "tree"
+               || w.type === "shelter") && dist(o, w) < 28) {
+            removeObject(w);
+            spawnObject("fire", w.x, w.y).fuel = 90;
+            addLog("The fire spread to nearby wood!", "sys");
+            break;
+          }
+        }
+      }
+    }
+    if (o.type === "tree") {
+      o.dropTimer -= dt;
+      if (o.dropTimer <= 0) {
+        o.dropTimer = rand(55, 95);
+        let near = 0;
+        for (const s of state.objects)
+          if (s.type === "stick" && dist(o, s) < 80) near++;
+        if (near < 2) spawnObject("stick", o.x + rand(-24, 24), o.y + rand(10, 28));
+      }
+    }
+  }
+
+  // slow vegetative spread near water
+  state.ecoTimer -= dt;
+  if (state.ecoTimer <= 0) {
+    state.ecoTimer = 9;
+    const spreaders = state.objects.filter(o => o.type === "reed" || o.type === "vine");
+    if (spreaders.length) {
+      const o = choice(spreaders);
+      let near = 0;
+      for (const s of state.objects) if (s.type === o.type && dist(o, s) < 70) near++;
+      const wantsWater = o.type === "reed";
+      const okSpot = { x: o.x + rand(-40, 40), y: o.y + rand(-40, 40) };
+      const nearWaterOk = !wantsWater || isNearWater(okSpot.x, okSpot.y, 110);
+      if (near < 3 && nearWaterOk && !riverBlocked(okSpot.x, okSpot.y)
+          && okSpot.x > 20 && okSpot.y > 20
+          && okSpot.x < canvas.clientWidth - 20 && okSpot.y < canvas.clientHeight - 20) {
+        spawnObject(o.type, okSpot.x, okSpot.y);
+      }
+    }
+  }
+  if (state.pitWary > 0) state.pitWary -= dt;
+}
+function startFlood(mag) {
+  state.flood = mag;
+  addLog("The river swells and floods its banks!", "discovery");
+  for (const b of state.bridges) b.condition -= 40 * mag;
+  if (state.dam) state.dam.condition -= 30 * mag;
+  for (const o of state.objects.slice()) {
+    const nearChannel = state.river.length &&
+      Math.abs(o.x - riverXat(o.y)) < RIVER_HALF * 2 + 26 && !isDry(riverIndexAt(o.y));
+    if (!nearChannel) continue;
+    if ((o.type === "stick" || o.type === "log" || o.type === "reed") && Math.random() < 0.6) {
+      removeObject(o);                          // washed downstream
+    } else if (o.type === "berrybush") {
+      o.berries = 0; o.regrowTimer = 45;        // drowned
+    } else if (o.type === "storage") {
+      o.stock = 0; o.condition = (o.condition || 100) - 30;   // ruined stores
+    }
+  }
+  observe("water_separates", null, "The flood took whatever sat too near the banks.");
+}
+function damFails() {
+  addLog("THE DAM HAS FAILED — a wall of water tears downstream!", "discovery");
+  const idx = state.dam.index;
+  state.dam = null;
+  for (const o of state.objects.slice()) if (o.type === "lake") removeObject(o);
+  startFlood(1.3);
+  // the released river carves a new path below the breach
+  const w = canvas.clientWidth || 800;
+  let x = state.river[idx].x;
+  for (let i = idx + 1; i < state.river.length; i++) {
+    x = clamp(x + rand(-22, 22), w * 0.25, w * 0.75);
+    state.river[i].x = x;
+  }
+  state.bridges = state.bridges.filter(b => {
+    const keep = Math.abs(b.x - riverXat(b.y)) < RIVER_HALF + 12;
+    if (!keep) addLog("The river's new course left the old bridge stranded on dry land.", "sys");
+    return keep;
+  });
+  observe("heavy_blocks", null, "What blocked the river did not block it forever.");
+}
+function isNearWater(x, y, range) {
+  for (const o of state.objects) {
+    if ((o.type === "water" || o.type === "lake") && dist({ x, y }, o) < range) return true;
+  }
+  if (state.river.length) {
+    const i = riverIndexAt(y);
+    if (!isDry(i) && Math.abs(x - riverXat(y)) < range) return true;
+  }
+  return false;
+}
+
+/* ============================================================
+   SIMULATION STEP
+   ============================================================ */
+function step(dt) {
+  state.tick++;
+  state.time += dt;
+  updateObjects(dt);
+  for (const a of state.agents.slice()) updateAgent(a, dt);
+  for (const c of state.creatures.slice()) updateCreature(c, dt);
+  tryReproduce();
+
+  /* ---- THE ENVIRONMENT'S OWN MOODS: rain wanders; floods and
+     droughts arrive uninvited; nothing built lasts forever ---- */
+  state.rain = clamp(state.rain + rand(-1, 1) * dt * 7, 0, 100);
+  if (state.flood > 0) state.flood = Math.max(0, state.flood - dt / 25);
+  if (state.rain > 78 && state.flood <= 0 && Math.random() < dt * 0.06) startFlood(1);
+  if (!state.drought && state.rain < 14) {
+    state.drought = true;
+    addLog("Drought grips the land. Growth slows; the grazers thin.", "discovery");
+  } else if (state.drought && state.rain > 34) {
+    state.drought = false;
+    addLog("The rains return. The land breathes again.", "sys");
+  }
+  if (state.spearWary > 0) state.spearWary -= dt;
+  state.huntKills = Math.max(0, state.huntKills - dt / 40);
+  if (!state.grazerScarce && state.huntKills > 4) {
+    state.grazerScarce = true;
+    addLog("The grazers grow scarce and wary — the land is overhunted.", "discovery");
+  } else if (state.grazerScarce && state.huntKills < 2) {
+    state.grazerScarce = false;
+    addLog("Grazers wander back into the emptied land.", "sys");
+  }
+
+  // structures are temporary adaptations
+  for (const b of state.bridges.slice()) {
+    b.condition -= dt * (100 / 330);
+    if (b.condition <= 0) {
+      state.bridges = state.bridges.filter(x => x !== b);
+      addLog("The old bridge groaned and collapsed into the river.", "discovery");
+    }
+  }
+  if (state.dam) {
+    state.dam.condition -= dt * (100 / 470);
+    if (state.dam.condition <= 0) damFails();
+  }
+  for (const o of state.objects.slice()) {
+    if (o.condition === undefined) continue;
+    o.condition -= dt * (100 / 430);
+    if (o.condition <= 0) {
+      removeObject(o);
+      addLog("The " + OBJECT_TYPES[o.type].label.toLowerCase() +
+        " sagged and fell apart.", "sys");
+    }
+  }
+
+  // beliefs fade when no living mind carries them
+  state.beliefTimer -= dt;
+  if (state.beliefTimer <= 0) {
+    state.beliefTimer = 1;
+    for (const b of BELIEFS) {
+      if (b.conf > 0 && graspers(b.id) === 0) b.conf = Math.max(0, b.conf - 2);
+    }
+  }
+
+  // player influence returns slowly
+  state.infTimer += dt;
+  if (state.infTimer >= INF_REGEN) {
+    state.infTimer = 0;
+    state.influence = Math.min(INF_MAX, state.influence + 1);
+  }
+
+  state.predatorTimer -= dt;
+  if (state.predatorTimer <= 0) {
+    state.predatorTimer = rand(130, 200) * (8 / Math.max(8, state.agents.length));
+    const n = state.creatures.filter(c => c.kind === "predator").length;
+    if (n < PREDATOR_CAP && state.agents.length) {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const p = pointOnSide(Math.random() < 0.5 ? 0 : 1, w, h);
+      spawnCreature("predator", p.x, p.y);
+      addLog("A predator prowls in from the wilderness.", "discovery");
+    }
+  }
+
+  // frontier record based on reachable states
+  const unlocked = REACHABLE_STATES.filter(s => s.test()).length;
+  if (unlocked > state.bestStates) {
+    state.bestStates = unlocked;
+    save(STORAGE_KEY, unlocked);
+  }
+}
+
+/* ============================================================
+   RENDERING (canvas) — carried over from v0.3
+   ============================================================ */
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr; canvas.height = h * dpr;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+let terrain = null, terrainW = 0, terrainH = 0;
+function hash2(x, y) {
+  let n = (x * 374761393 + y * 668265263) | 0;
+  n = ((n ^ (n >> 13)) * 1274126177) | 0;
+  return (((n ^ (n >> 16)) >>> 0) % 1000) / 1000;
+}
+function ensureTerrain(w, h) {
+  if (terrain && terrainW === w && terrainH === h) return;
+  terrainW = w; terrainH = h;
+  terrain = document.createElement("canvas");
+  terrain.width = w; terrain.height = h;
+  const t = terrain.getContext("2d");
+  if (!t) { terrain = null; return; }
+  const TILE = 24;
+  const greens = ["#4a683c", "#476339", "#4d6c3f", "#455f37"];
+  for (let ty = 0; ty * TILE < h; ty++) {
+    for (let tx = 0; tx * TILE < w; tx++) {
+      t.fillStyle = greens[Math.floor(hash2(tx, ty) * greens.length)];
+      t.fillRect(tx * TILE, ty * TILE, TILE, TILE);
+      if (hash2(tx * 3 + 1, ty * 7 + 2) > 0.72) {
+        const gx = tx * TILE + hash2(tx, ty + 99) * TILE;
+        const gy = ty * TILE + hash2(tx + 99, ty) * TILE;
+        t.strokeStyle = "rgba(30,48,24,0.55)";
+        t.lineWidth = 1.4;
+        t.beginPath();
+        t.moveTo(gx, gy); t.lineTo(gx - 2, gy - 5);
+        t.moveTo(gx + 3, gy); t.lineTo(gx + 4, gy - 5);
+        t.moveTo(gx + 6, gy); t.lineTo(gx + 5, gy - 4);
+        t.stroke();
+      }
+      if (hash2(tx * 13 + 5, ty * 11 + 3) > 0.965) {
+        t.fillStyle = hash2(tx, ty + 7) > 0.5 ? "#e8d05a" : "#e0e6ee";
+        t.beginPath();
+        t.arc(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 1.8, 0, Math.PI * 2);
+        t.fill();
+      }
+    }
+  }
+  t.strokeStyle = "rgba(255,255,255,0.03)";
+  t.lineWidth = 1;
+  t.beginPath();
+  for (let x = TILE; x < w; x += TILE) { t.moveTo(x, 0); t.lineTo(x, h); }
+  for (let y = TILE; y < h; y += TILE) { t.moveTo(0, y); t.lineTo(w, y); }
+  t.stroke();
+}
+function strokePath(run) {
+  ctx.beginPath();
+  ctx.moveTo(run[0].x, run[0].y);
+  for (let i = 1; i < run.length; i++) ctx.lineTo(run[i].x, run[i].y);
+  ctx.stroke();
+}
+function drawRiver() {
+  const pts = state.river;
+  if (!pts.length) return;
+  let run = [pts[0]], runDry = isDry(0);
+  const flush = () => {
+    if (run.length < 2) return;
+    if (runDry) {
+      ctx.strokeStyle = "#8a7a5c"; ctx.lineWidth = RIVER_HALF * 2;
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      strokePath(run);
+      ctx.strokeStyle = "#6e6248"; ctx.lineWidth = 4;
+      ctx.setLineDash([3, 9]); strokePath(run); ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = "#3f7fb5";
+      ctx.lineWidth = RIVER_HALF * 2 * (1 + state.flood * 0.7);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      strokePath(run);
+      ctx.strokeStyle = "#5a9fd0"; ctx.lineWidth = RIVER_HALF;
+      strokePath(run);
+      ctx.strokeStyle = "rgba(220,240,255,0.3)"; ctx.lineWidth = 2;
+      ctx.setLineDash([9, 15]);
+      ctx.lineDashOffset = -state.time * 24;
+      strokePath(run);
+      ctx.setLineDash([]);
+    }
+  };
+  for (let i = 1; i < pts.length; i++) {
+    const d = isDry(i);
+    if (d !== runDry) { run.push(pts[i]); flush(); run = [pts[i]]; runDry = d; }
+    else run.push(pts[i]);
+  }
+  flush();
+  for (const b of state.bridges) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.fillStyle = "#8a6238";
+    ctx.fillRect(-RIVER_HALF - 8, -9, RIVER_HALF * 2 + 16, 18);
+    ctx.strokeStyle = "rgba(50,34,18,0.6)";
+    ctx.lineWidth = 1.5;
+    for (let px = -RIVER_HALF - 4; px <= RIVER_HALF + 4; px += 7) {
+      ctx.beginPath(); ctx.moveTo(px, -9); ctx.lineTo(px, 9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (state.dam) {
+    ctx.save();
+    ctx.translate(state.dam.x, state.dam.y);
+    ctx.fillStyle = "#7a6a52";
+    ctx.fillRect(-RIVER_HALF - 6, -7, RIVER_HALF * 2 + 12, 14);
+    ctx.fillStyle = "#8a6238";
+    for (let px = -RIVER_HALF - 2; px <= RIVER_HALF; px += 8) ctx.fillRect(px, -9, 4, 18);
+    ctx.restore();
+  }
+}
+function drawShadow(x, y, rx) {
+  ctx.fillStyle = "rgba(20,30,16,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, rx * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawObject(o) {
+  const def = OBJECT_TYPES[o.type];
+  if (def.shape !== "pool" && def.shape !== "hole") drawShadow(o.x, o.y + o.r * 0.55, o.r * 0.85);
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  drawObjectShape(ctx, o, def);
+  ctx.restore();
+}
+/* shared by the world renderer AND the seed palette, so what you place
+   looks exactly like what appears in the world */
+function drawObjectShape(g, o, def) {
+  switch (def.shape) {
+    case "line":
+      g.strokeStyle = "#b08a5a"; g.lineWidth = 3; g.lineCap = "round";
+      g.beginPath(); g.moveTo(-10, 6); g.lineTo(10, -6); g.stroke();
+      break;
+    case "rock":
+      g.fillStyle = "#8b95a1";
+      g.beginPath();
+      g.moveTo(-9, 4); g.lineTo(-4, -7); g.lineTo(6, -6);
+      g.lineTo(9, 2); g.lineTo(3, 7); g.closePath(); g.fill();
+      break;
+    case "coil":
+      g.strokeStyle = "#6da96b"; g.lineWidth = 2.5;
+      g.beginPath();
+      for (let t = 0; t <= 1; t += 0.05) {
+        const x = -10 + t * 20;
+        const y = Math.sin(t * Math.PI * 3 + o.phase * 0.3) * 4;
+        t === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+      }
+      g.stroke();
+      break;
+    case "fire": {
+      const fuelScale = clamp(o.fuel / 120, 0.45, 1);
+      const f = (1 + Math.sin(o.phase * 2.4) * 0.15) * fuelScale;
+      const grad = g.createRadialGradient(0, 0, 2, 0, 0, 26 * f);
+      grad.addColorStop(0, "rgba(232,118,61,0.35)");
+      grad.addColorStop(1, "rgba(232,118,61,0)");
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(0, 0, 26 * f, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#e8763d";
+      g.beginPath(); g.moveTo(0, -12 * f); g.lineTo(7 * f, 6); g.lineTo(-7 * f, 6);
+      g.closePath(); g.fill();
+      g.fillStyle = "#f4c15a";
+      g.beginPath(); g.moveTo(0, -5 * f); g.lineTo(3.5 * f, 6); g.lineTo(-3.5 * f, 6);
+      g.closePath(); g.fill();
+      break;
+    }
+    case "pool": {
+      const r = o.r + Math.sin(o.phase) * 1.2;
+      g.fillStyle = "rgba(77,159,214,0.6)";
+      g.beginPath(); g.ellipse(0, 0, r + 4, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = "rgba(160,210,240,0.5)"; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(0, 0, r, r * 0.6, 0, 0, Math.PI * 2); g.stroke();
+      break;
+    }
+    case "bush":
+      g.fillStyle = "#4e7a3a";
+      g.beginPath(); g.arc(0, 0, 11, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#d4506b";
+      for (let i = 0; i < o.berries; i++) {
+        const ang = i * 2.1 + 0.5;
+        g.beginPath();
+        g.arc(Math.cos(ang) * 5, Math.sin(ang) * 5, 2.4, 0, Math.PI * 2);
+        g.fill();
+      }
+      break;
+    case "blob":
+      g.fillStyle = "#c2865f";
+      g.beginPath(); g.ellipse(0, 2, 10, 7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "rgba(0,0,0,0.15)";
+      g.beginPath(); g.ellipse(0, 4, 7, 3.5, 0, 0, Math.PI * 2); g.fill();
+      break;
+    case "reed": {
+      g.strokeStyle = "#9dc06a"; g.lineWidth = 2;
+      const sway = Math.sin(o.phase * 0.8) * 2;
+      for (let i = -1; i <= 1; i++) {
+        g.beginPath();
+        g.moveTo(i * 4, 8);
+        g.quadraticCurveTo(i * 4 + sway, -2, i * 4 + sway * 1.6, -10);
+        g.stroke();
+      }
+      break;
+    }
+    case "tree": {
+      const sway = Math.sin(o.phase * 0.4) * 1.5;
+      g.fillStyle = "#6a4a2c";
+      g.fillRect(-3, -6, 6, 16);
+      g.fillStyle = "#3d6330";
+      g.beginPath(); g.arc(sway, -16, 13, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#4e7a3a";
+      g.beginPath(); g.arc(sway - 6, -10, 9, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(sway + 7, -11, 8, 0, Math.PI * 2); g.fill();
+      if (o.chop > 0) {
+        g.fillStyle = "#e8d05a";
+        g.fillRect(-3, 4, 6 * Math.min(1, o.chop / 3), 2);
+      }
+      break;
+    }
+    case "log":
+      g.strokeStyle = "#8a6238"; g.lineWidth = 7; g.lineCap = "round";
+      g.beginPath(); g.moveTo(-11, 2); g.lineTo(11, -2); g.stroke();
+      g.fillStyle = "#c2a06a";
+      g.beginPath(); g.arc(11, -2, 3.4, 0, Math.PI * 2); g.fill();
+      break;
+    case "hole":
+      g.fillStyle = "#3a2e20";
+      g.beginPath(); g.ellipse(0, 0, 11, 7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#241c12";
+      g.beginPath(); g.ellipse(0, 1, 7, 4, 0, 0, Math.PI * 2); g.fill();
+      break;
+    case "meat":
+      g.globalAlpha = clamp(o.decay / 20, 0.25, 1);
+      g.fillStyle = "#c05a50";
+      g.beginPath(); g.ellipse(-2, 0, 7, 5.5, 0.4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#efe6d8";
+      g.beginPath(); g.arc(7, -4, 2.4, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+      break;
+    case "storage":
+      g.fillStyle = "#7a6242";
+      g.fillRect(-11, -8, 22, 16);
+      g.strokeStyle = "#5a4832"; g.lineWidth = 2;
+      g.strokeRect(-11, -8, 22, 16);
+      g.fillStyle = "#8a6238";
+      g.beginPath();
+      g.moveTo(-13, -8); g.lineTo(0, -16); g.lineTo(13, -8);
+      g.closePath(); g.fill();
+      g.fillStyle = "#e8d05a";
+      for (let i = 0; i < Math.min(4, o.stock || 0); i++)
+        g.fillRect(-8 + i * 5, 2, 3, 3);
+      break;
+    case "firecircle":
+      g.fillStyle = "#8b95a1";
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        g.beginPath();
+        g.arc(Math.cos(ang) * 13, Math.sin(ang) * 8, 2.6, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.fillStyle = "rgba(232,163,61,0.25)";
+      g.beginPath(); g.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2); g.fill();
+      break;
+    case "shelter":
+      g.fillStyle = "#6a5232";
+      g.beginPath();
+      g.moveTo(0, -20); g.lineTo(16, 8); g.lineTo(-16, 8);
+      g.closePath(); g.fill();
+      g.strokeStyle = "#8a6238"; g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(0, -20); g.lineTo(16, 8);
+      g.moveTo(0, -20); g.lineTo(-16, 8);
+      g.stroke();
+      g.fillStyle = "#241c12";
+      g.beginPath();
+      g.moveTo(0, -6); g.lineTo(6, 8); g.lineTo(-6, 8);
+      g.closePath(); g.fill();
+      break;
+  }
+}
+function drawCreature(c) {
+  drawShadow(c.x, c.y + 6, c.kind === "predator" ? 9 : 6);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  const hop = Math.abs(Math.sin(c.phase * 2)) * -1.5;
+  if (c.kind === "grazer") {
+    ctx.translate(0, hop);
+    ctx.fillStyle = "#b89468";
+    ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -3, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#a07f54";
+    ctx.fillRect(4.5, -8.5, 1.6, 4); ctx.fillRect(7, -8.5, 1.6, 4);
+    ctx.fillStyle = "#efe6d8";
+    ctx.beginPath(); ctx.arc(-6, -1, 2, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.translate(0, hop * 0.5);
+    ctx.fillStyle = "#5a5f6a";
+    ctx.beginPath(); ctx.ellipse(0, 0, 9.5, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(9, -3, 4.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#454a54";
+    ctx.beginPath(); ctx.moveTo(-8, -1); ctx.lineTo(-15, -6); ctx.lineTo(-12, 1);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(7, -8.5, 2, 4); ctx.fillRect(10.5, -8.5, 2, 4);
+    ctx.fillStyle = "#e05a5a";
+    ctx.fillRect(10.5, -4, 1.6, 1.6);
+  }
+  ctx.restore();
+}
+function pill(x, y, w, h, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  const r = h / 2;
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.fill();
+}
+function drawAgent(a) {
+  const scale = Math.min(1, 0.62 + (a.age / 120) * 0.38);
+  const moving = Math.abs(a.vx) + Math.abs(a.vy) > 4;
+  const walk = moving ? Math.sin(state.time * 12 + a.id * 2) : 0;
+  const bob = moving ? Math.abs(Math.sin(state.time * 12 + a.id * 2)) * -1.5 : 0;
+  drawShadow(a.x, a.y + 11 * scale, 8 * scale);
+  ctx.save();
+  ctx.translate(a.x, a.y + bob);
+  ctx.scale(scale, scale);
+  if (a.flashTimer > 0) {
+    const t = a.flashTimer / 1.2;
+    ctx.strokeStyle = "rgba(232,163,61," + (t * 0.9) + ")";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 10 + (1 - t) * 22, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.fillStyle = "#3a3f4a";
+  ctx.fillRect(-4, 5 + walk * 2, 3, 6 - walk * 2);
+  ctx.fillRect(1, 5 - walk * 2, 3, 6 + walk * 2);
+  ctx.fillStyle = a.color;
+  ctx.fillRect(-5, -3, 10, 9);
+  ctx.fillStyle = SKIN;
+  ctx.fillRect(-7, -2, 2, 6); ctx.fillRect(5, -2, 2, 6);
+  ctx.fillStyle = SKIN; ctx.fillRect(-4, -12, 8, 9);
+  ctx.fillStyle = a.hair;
+  ctx.fillRect(-4, -13, 8, 3); ctx.fillRect(-5, -12, 1, 4); ctx.fillRect(4, -12, 1, 4);
+  ctx.fillStyle = "#1a1a22";
+  ctx.fillRect(-2, -8, 1.4, 1.6); ctx.fillRect(1, -8, 1.4, 1.6);
+  if (armed(a)) {
+    ctx.strokeStyle = "#b08a5a"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(8, 8); ctx.lineTo(12, -12); ctx.stroke();
+    ctx.fillStyle = "#c9d2dd";
+    ctx.beginPath(); ctx.moveTo(12, -12); ctx.lineTo(10.6, -8.5); ctx.lineTo(13.4, -8.5);
+    ctx.closePath(); ctx.fill();
+  }
+  if (carriesLight(a)) {
+    const f = 1 + Math.sin(state.time * 8 + a.id) * 0.25;
+    ctx.fillStyle = "#e8763d";
+    ctx.beginPath();
+    ctx.moveTo(-9, -6 * f - 4); ctx.lineTo(-6.5, 0); ctx.lineTo(-11.5, 0);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  ctx.font = "600 10px " + '"Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const nw = ctx.measureText(a.name).width + 12;
+  pill(a.x - nw / 2, a.y - 30, nw, 13, "rgba(10,14,20,0.75)");
+  ctx.fillStyle = "#e6ecf2";
+  ctx.fillText(a.name, a.x, a.y - 23.5);
+  const gText = "Goal: " + a.goal;
+  ctx.font = "9px " + '"Segoe UI", system-ui, sans-serif';
+  const gw = ctx.measureText(gText).width + 10;
+  pill(a.x - gw / 2, a.y + 15, gw, 12, "rgba(10,14,20,0.7)");
+  ctx.fillStyle = GOAL_COLORS[a.goal] || "#9fb2c4";
+  ctx.fillText(gText, a.x, a.y + 21.5);
+  ctx.textBaseline = "alphabetic";
+}
+function drawSite(s) {
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.strokeStyle = "rgba(232,163,61,0.7)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(0, 0, 15, -Math.PI / 2, -Math.PI / 2 + (s.progress / s.need) * Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  const label = s.kind[0].toUpperCase() + s.kind.slice(1) + " " +
+    Math.floor((s.progress / s.need) * 100) + "%";
+  ctx.font = "9px " + '"Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const lw = ctx.measureText(label).width + 10;
+  pill(s.x - lw / 2, s.y - 30, lw, 12, "rgba(10,14,20,0.75)");
+  ctx.fillStyle = "#e8a33d";
+  ctx.fillText(label, s.x, s.y - 24);
+  ctx.textBaseline = "alphabetic";
+}
+function render() {
+  resizeCanvas();
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  ensureTerrain(w, h);
+  if (terrain) ctx.drawImage(terrain, 0, 0);
+  else { ctx.fillStyle = "#4a683c"; ctx.fillRect(0, 0, w, h); }
+  drawRiver();
+  for (const o of state.objects) {
+    if (o.type !== "fire") continue;
+    const g = ctx.createRadialGradient(o.x, o.y + 4, 3, o.x, o.y + 4, 26);
+    g.addColorStop(0, "rgba(74,56,40,0.85)");
+    g.addColorStop(1, "rgba(74,56,40,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(o.x, o.y + 4, 26, 16, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const o of state.objects) {
+    const sh = OBJECT_TYPES[o.type].shape;
+    if (sh === "pool" || sh === "hole") drawObject(o);
+  }
+  const layered = [];
+  for (const o of state.objects) {
+    const sh = OBJECT_TYPES[o.type].shape;
+    if (sh !== "pool" && sh !== "hole") layered.push({ y: o.y, kind: "obj", ref: o });
+  }
+  for (const c of state.creatures) layered.push({ y: c.y + 5, kind: "creature", ref: c });
+  for (const a of state.agents) layered.push({ y: a.y + 11, kind: "agent", ref: a });
+  layered.sort((p, q) => p.y - q.y);
+  for (const item of layered) {
+    if (item.kind === "obj") drawObject(item.ref);
+    else if (item.kind === "creature") drawCreature(item.ref);
+    else drawAgent(item.ref);
+  }
+  for (const s of state.sites) drawSite(s);
+}
+
+/* ============================================================
+   COLONY OVERVIEW — pressures, bottleneck, problem graph
+   ============================================================ */
+function avgNeed(key) {
+  if (!state.agents.length) return 0;
+  let s = 0;
+  for (const a of state.agents) s += a[key];
+  return s / state.agents.length;
+}
+function pressures() {
+  let berries = 0;
+  for (const o of state.objects) if (o.type === "berrybush") berries += o.berries;
+  const foodFree = REACHABLE_STATES.find(s => s.id === "foodfree").test();
+  const food = clamp(avgNeed("hunger") * 0.7 + (berries < 5 ? 30 : 0) + (foodFree ? 0 : 12), 0, 100);
+  const water = clamp(avgNeed("thirst"), 0, 100);
+  const preds = state.creatures.filter(c => c.kind === "predator").length;
+  const defenders = state.agents.filter(a => armed(a)).length;
+  const recentAttack = state.time - state.lastAttack < 30 ? 25 : 0;
+  const pred = clamp(preds * 30 + recentAttack - defenders * 15, 0, 100);
+  return { food, water, pred, know: knowledgeStability() };
+}
+function bottleneck() {
+  const p = pressures();
+  const noCross = state.river.length && crossings().length === 0;
+  if (p.pred > 55) return { text: "Predators are too dangerous", goal: "Believe in reach and edges — a spear changes everything." };
+  if (p.food > 65) return { text: "No reliable food source", goal: "Bushes alone won't feed a growing colony." };
+  if (countType("fire") === 0 && !anyLiving("Fire Craft"))
+    return { text: "No fire, and no way to make one", goal: "Cold and fear rise until flame returns." };
+  if (noCross) return { text: "Cannot cross the river", goal: "Everything the colony lacks grows on the far bank." };
+  if (p.know < 50 && state.births > 0)
+    return { text: "Knowledge is fragile", goal: "Too few minds carry each belief. Teaching must spread." };
+  return null;   // calm
+}
+function commonQuestion() {
+  const counts = {};
+  for (const a of state.agents)
+    for (const q of a.questions) counts[q] = (counts[q] || 0) + 1;
+  const top = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+  if (!top) return "\u2014";
+  const def = QUESTION_DEFS.find(q => q.id === top[0]);
+  return def ? "\u201C" + def.text + "\u201D" : "\u2014";
+}
+function nextApplication() {
+  let best = null, bestDeficit = Infinity;
+  for (const app of APPLICATIONS) {
+    if (state.knowledge.has(app.name)) continue;
+    const gates = Object.entries(app.beliefs);
+    let deficit = 0, worst = null, worstGap = -1;
+    for (const [id, min] of gates) {
+      const gap = Math.max(0, min - BELIEF_BY_ID[id].conf);
+      deficit += gap;
+      if (gap > worstGap) { worstGap = gap; worst = { id, min }; }
+    }
+    if (deficit < bestDeficit) { bestDeficit = deficit; best = { app, deficit, worst }; }
+  }
+  if (!best) return "\u2014";
+  if (best.deficit === 0)
+    return best.app.name + " — thinkable now; needs the right things side by side.";
+  const b = BELIEF_BY_ID[best.worst.id];
+  return best.app.name + " — waiting on \u201C" + b.name + "\u201D (" +
+    Math.round(b.conf) + "/" + best.worst.min + "%).";
+}
+
+/* ============================================================
+   DOM PANELS
+   ============================================================ */
+const LOG_ICON = { discovery: "\u{1F4A1} ", share: "\u{1F91D} ", obs: "\u{1F50D} ", sys: "" };
+function fmtTime(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function renderLog() {
+  elLog.innerHTML = state.log.map(e =>
+    '<li class="' + e.kind + '"><span class="t">' + fmtTime(e.t) + '</span>' +
+    (LOG_ICON[e.kind] || "") + escapeHtml(e.text) + '</li>'
+  ).join("");
+}
+function renderFrontier() {
+  const unlocked = REACHABLE_STATES.filter(s => s.test()).length;
+  elFront.textContent = unlocked + "/" + TOTAL_STATES;
+  const pct = Math.round((unlocked / TOTAL_STATES) * 100);
+  el("frontier-fill").style.width = pct + "%";
+  el("frontier-pct").textContent = pct + "%";
+  el("ov-frontier-label").textContent =
+    unlocked + "/" + TOTAL_STATES + " \u00b7 best " + state.bestStates;
+}
+function renderOverview() {
+  const p = pressures();
+  el("ov-pop").textContent = state.agents.length;
+  el("ov-food").style.width = p.food + "%";
+  el("ov-water").style.width = p.water + "%";
+  el("ov-pred").style.width = p.pred + "%";
+  el("ov-know").style.width = p.know + "%";
+
+  const bn = bottleneck();
+  const banner = el("bottleneck-banner");
+  if (bn) {
+    banner.classList.remove("calm");
+    banner.innerHTML = "\u26A0 " + escapeHtml(bn.text) +
+      '<span class="b-goal">' + escapeHtml(bn.goal) + "</span>";
+  } else {
+    banner.classList.add("calm");
+    banner.innerHTML = "\u2714 The colony is stable" +
+      '<span class="b-goal">Needs are met. Curiosity leads the way.</span>';
+  }
+
+  // problem graph
+  el("problem-graph").innerHTML = CHAINS.map(ch => {
+    const solved = !QUESTION_DEFS.find(q => q.id === ch.qid).active();
+    const isBn = bn && (
+      (ch.qid === "cross" && bn.text.includes("cross")) ||
+      (ch.qid === "predator" && bn.text.includes("Predators")) ||
+      (ch.qid === "food" && bn.text.includes("food")) ||
+      (ch.qid === "fire" && bn.text.includes("fire")) ||
+      (ch.qid === "legacy" && bn.text.includes("Knowledge")));
+    const beliefChips = ch.beliefs.map(id => {
+      const b = BELIEF_BY_ID[id];
+      const strong = b.conf >= 30;
+      return '<span class="chip belief' + (strong ? " strong" : "") + '">' +
+        escapeHtml(b.name) + " " + Math.round(b.conf) + "%</span>";
+    }).join('<span class="arrow">+</span>');
+    const appOn = ch.app === "Teaching" ? state.taught > 0 : state.knowledge.has(ch.app);
+    const st = REACHABLE_STATES.find(s => s.id === ch.stateId);
+    const stOn = st.test();
+    return '<div class="chain' + (isBn ? " bottleneck" : "") + '">' +
+      '<span class="chip problem' + (solved ? " solved" : "") + '">' + escapeHtml(ch.problem) + '</span>' +
+      '<span class="arrow">\u2192</span>' + beliefChips +
+      '<span class="arrow">\u2192</span>' +
+      '<span class="chip app' + (appOn ? " on" : "") + '">' + escapeHtml(ch.app) + '</span>' +
+      '<span class="arrow">\u2192</span>' +
+      '<span class="chip state' + (stOn ? " on" : "") + '">' + escapeHtml(st.name) + '</span>' +
+      '</div>';
+  }).join("");
+
+  el("states-list").innerHTML = REACHABLE_STATES.map(s => {
+    const on = s.test();
+    return '<div class="rstate' + (on ? " on" : "") + '">' +
+      '<span class="s-ico">' + (on ? "\u2714" : "\u{1F512}") + '</span>' +
+      escapeHtml(s.name) + '</div>';
+  }).join("");
+
+  /* --- comfort/curiosity balance: where does the colony sit
+     between dulling ease and paralyzing crisis? --- */
+  let avgStress = 0, avgDrive = 0;
+  for (const a of state.agents) {
+    avgStress += Math.max(a.hunger, a.thirst + 5, (100 - a.warmth) * 0.8, a.fear);
+    avgDrive += a.drive;
+  }
+  if (state.agents.length) { avgStress /= state.agents.length; avgDrive /= state.agents.length; }
+  el("ov-balance-marker").style.left = clamp(avgStress, 2, 98) + "%";
+  el("ov-balance-label").textContent =
+    avgStress < 25 ? "too comfortable" :
+    avgStress <= 55 ? "productive tension" : "under strain";
+
+  el("ov-river").textContent =
+    (state.flood > 0 ? "FLOODING" :
+     state.drought ? "Drought" :
+     state.rain > 70 ? "Swollen \u2014 flood risk" : "Calm") +
+    (state.dam ? " \u00b7 dam " + Math.round(state.dam.condition) + "%" : "");
+
+  const risks = [];
+  for (const b of state.bridges)
+    if (b.condition < 60) risks.push("bridge " + Math.round(b.condition) + "%");
+  if (state.dam && state.dam.condition < 60)
+    risks.push("dam " + Math.round(state.dam.condition) + "%");
+  for (const o of state.objects)
+    if (o.condition !== undefined && o.condition < 60)
+      risks.push(OBJECT_TYPES[o.type].label.toLowerCase() + " " + Math.round(o.condition) + "%");
+  el("ov-structs").textContent = risks.length ? risks.join(", ") : "all sound";
+
+  const pc = { building: 0, studying: 0, teaching: 0, chopping: 0 };
+  for (const a of state.agents) {
+    if (a.teachSession) pc.teaching++;
+    else if (a.project && a.project.kind === "study") pc.studying++;
+    else if (a.project && a.project.kind === "chop") pc.chopping++;
+    else if (a.project) pc.building++;
+  }
+  const pcParts = [];
+  if (pc.building) pcParts.push(pc.building + " building");
+  if (pc.studying) pcParts.push(pc.studying + " studying");
+  if (pc.teaching) pcParts.push(pc.teaching + " teaching");
+  if (pc.chopping) pcParts.push(pc.chopping + " chopping");
+  el("ov-projects").textContent = pcParts.length ? pcParts.join(" \u00b7 ") : "none";
+
+  const soloBeliefs = BELIEFS.filter(b => b.conf > 15 && graspers(b.id) === 1).length;
+  const soloApps = [...state.knowledge.keys()]
+    .filter(k => state.agents.filter(a => a.knowledge.has(k)).length === 1).length;
+  const lost = state.lostApps.size;
+  const riskParts = [];
+  if (soloBeliefs) riskParts.push(soloBeliefs + " belief" + (soloBeliefs > 1 ? "s" : "") + " in one mind");
+  if (soloApps) riskParts.push(soloApps + " skill" + (soloApps > 1 ? "s" : "") + " in one mind");
+  if (lost) riskParts.push(lost + " LOST");
+  el("ov-risk").textContent = riskParts.length ? riskParts.join(" \u00b7 ") : "well spread";
+
+  el("ov-consequence").textContent =
+    state.dam && state.rain > 70 ? "The rains swell the lake \u2014 the dam strains." :
+    state.grazerScarce ? "Hunting success has emptied the land of grazers." :
+    avgDrive < 28 && state.agents.length ? "Comfort is dulling the colony's curiosity." :
+    lost ? "Knowledge has been lost \u2014 someone must rediscover it." :
+    state.bridges.length && state.agents.length >= 10 ?
+      "Open banks let the colony grow past its food." : "\u2014";
+
+  el("ov-resil").textContent = state.adaptations + " adaptation" +
+    (state.adaptations === 1 ? "" : "s") +
+    " \u00b7 " + state.deaths + " lost \u00b7 " + state.births + " born";
+
+  el("ov-question").textContent = commonQuestion();
+  el("ov-obs").textContent = state.observations.length
+    ? "\u201C" + state.observations[0].text + "\u201D" : "\u2014";
+  el("ov-next").textContent = nextApplication();
+}
+function renderBeliefs() {
+  const held = BELIEFS.filter(b => b.evidence > 0 || b.conf > 0)
+    .sort((a, b) => b.conf - a.conf);
+  el("belief-list").innerHTML = held.length ? held.map(b => {
+    const g = graspers(b.id);
+    const faded = b.conf > 0 && g === 0;
+    return '<div class="belief-card' + (faded ? " faded" : "") + '">' +
+      '<div class="b-top"><span class="b-name">' + escapeHtml(b.name) + '</span>' +
+      '<span class="b-conf">' + Math.round(b.conf) + '%</span></div>' +
+      '<div class="b-bar"><div style="width:' + b.conf + '%"></div></div>' +
+      '<div class="b-meta">' + b.evidence + ' observation' + (b.evidence === 1 ? "" : "s") +
+      ' \u00b7 held by ' + g + ' living mind' + (g === 1 ? "" : "s") +
+      (b.firstBy ? ' \u00b7 first: ' + escapeHtml(b.firstBy) : "") +
+      (faded ? ' \u00b7 fading\u2026' : "") + '</div></div>';
+  }).join("") :
+  '<div class="hint">Nothing believed yet. Beliefs grow from observations.</div>';
+
+  if (state.knowledge.size === 0) {
+    elKnow.innerHTML = '<li class="empty-state">No applications conceived yet. ' +
+      'Beliefs come first \u2014 and the far bank holds materials the founders lack.</li>';
+  } else {
+    const items = [...state.knowledge.values()].sort((a, b) => b.tick - a.tick);
+    elKnow.innerHTML = items.map(rec => {
+      const r = rec.app;
+      const gates = Object.keys(r.beliefs).map(id => BELIEF_BY_ID[id].name);
+      const knownBy = state.agents.filter(a => a.knowledge.has(r.name)).length;
+      return '<li class="knowledge-card">' +
+        '<div class="k-icon">' + (r.icon || "\u2728") + '</div>' +
+        '<div class="k-body"><div class="k-top">' +
+        '<span class="k-name">' + escapeHtml(r.name) + '</span>' +
+        '<span class="k-tag">' + escapeHtml(r.tag) + '</span></div>' +
+        '<div class="k-desc">' +
+        (gates.length ? 'Built on: ' + gates.map(g => "<b>" + escapeHtml(g) + "</b>").join(", ")
+                      : escapeHtml(r.blurb)) + '</div>' +
+        '<div class="k-meta"><span>First: <span class="by">' + escapeHtml(rec.by) +
+        '</span> \u00b7 known by ' + knownBy + '/' + state.agents.length + '</span>' +
+        '<span>' + fmtTime(Math.max(0, state.time - rec.time)) + ' ago</span></div>' +
+        '</div></li>';
+    }).join("");
+  }
+}
+const NEED_BAR = [
+  ["health", "#ff6b81", true], ["hunger", "#d98d4a", false],
+  ["thirst", "#5aa9e0", false], ["warmth", "#e8963d", true],
+  ["fear", "#b07ae0", false], ["energy", "#e8d05a", true],
+  ["curiosity", "#5fd4c4", true],
+];
+function renderAgentPanel() {
+  if (!state.agents.length) {
+    elAgents.innerHTML = '<div class="hint">No one remains. Beliefs fade; the record stays.</div>';
+    return;
+  }
+  elAgents.innerHTML = state.agents.map(a => {
+    const bars = NEED_BAR.map(([key, color, invert]) => {
+      const v = a[key];
+      const fill = invert ? v : 100 - v;
+      return '<div class="nbar"><div class="nfill" style="width:' +
+        fill.toFixed(0) + '%;background:' + color + '"></div></div>';
+    }).join("");
+    const q = a.questions.length
+      ? QUESTION_DEFS.find(x => x.id === a.questions[0]) : null;
+    return '<div class="agent-card"><div class="a-head">' +
+      '<div class="a-avatar" style="background:' + a.color + '">' + escapeHtml(a.name[0]) + '</div>' +
+      '<span class="a-name">' + escapeHtml(a.name) + '</span>' +
+      '<span class="a-known">' + a.beliefs.size + 'b \u00b7 ' + a.knowledge.size + 'a</span>' +
+      '<span class="a-goal">' + escapeHtml(a.goal) + '</span></div>' +
+      '<div class="needs-row">' + bars + '</div>' +
+      (q ? '<div class="a-question">wonders: \u201C' + escapeHtml(q.text) + '\u201D</div>' : "") +
+      '</div>';
+  }).join("");
+}
+function renderSeed() {
+  const pips = el("influence-pips");
+  let html = "";
+  for (let i = 0; i < INF_MAX; i++)
+    html += '<span class="pip' + (i < state.influence ? " full" : "") + '"></span>';
+  pips.innerHTML = html;
+}
+function renderAll() {
+  renderLog(); renderFrontier(); renderOverview();
+  renderBeliefs(); renderAgentPanel(); renderSeed();
+}
+
+/* ============================================================
+   PLAYER INFLUENCE — seeding conditions, not spawning items
+   ============================================================ */
+function buildPalette() {
+  const wrap = el("object-palette");
+  wrap.innerHTML = "";
+  for (const [key, def] of Object.entries(OBJECT_TYPES)) {
+    if (!def.placeable) continue;
+    const btn = document.createElement("button");
+    btn.className = "obj-btn" + (key === state.selectedType ? " selected" : "");
+    const glyph = document.createElement("canvas");
+    glyph.width = 40; glyph.height = 34; glyph.className = "glyph";
+    const g2 = glyph.getContext("2d");
+    if (g2) {
+      g2.translate(20, def.shape === "tree" ? 27 : 19);
+      drawObjectShape(g2, { type: key, phase: 2, berries: 5, stock: 3,
+        fuel: 200, decay: 45, chop: 0, meatLeft: 1, r: def.r }, def);
+    }
+    const label = document.createElement("span");
+    label.className = "obj-name";
+    label.textContent = def.label;
+    btn.appendChild(glyph);
+    btn.appendChild(label);
+    btn.addEventListener("click", () => {
+      state.selectedType = key;
+      wrap.querySelectorAll(".obj-btn").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+    });
+    wrap.appendChild(btn);
+  }
+}
+function placeAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  let x = clamp(clientX - rect.left, 12, rect.width - 12);
+  const y = clamp(clientY - rect.top, 12, rect.height - 12);
+  const type = state.selectedType;
+
+  if (state.influence < 1) {
+    addLog("Not enough influence \u2014 the land resists further seeding.", "sys");
+    renderLog(); return;
+  }
+  if (riverBlocked(x, y)) {
+    const rx = riverXat(y);
+    x = x < rx ? rx - RIVER_HALF - 16 : rx + RIVER_HALF + 16;
+  }
+  // plausibility: things take root only where they could
+  if (type === "fire" && isNearWater(x, y, 34)) {
+    addLog("The water would quench a fire there.", "sys"); renderLog(); return;
+  }
+  if ((type === "clay" || type === "reed") && !isNearWater(x, y, 110)) {
+    addLog(OBJECT_TYPES[type].label + " only takes hold near water.", "sys");
+    renderLog(); return;
+  }
+  if (type === "vine" && !isNearWater(x, y, 130) && !nearestTreeWithin(x, y, 130)) {
+    addLog("Vines need water or trees to climb.", "sys"); renderLog(); return;
+  }
+
+  state.influence--;
+  spawnObject(type, x, y);
+  addLog("Seeded " + OBJECT_TYPES[type].label + ".", "sys");
+  renderLog(); renderSeed();
+}
+function nearestTreeWithin(x, y, range) {
+  for (const o of state.objects)
+    if (o.type === "tree" && dist({ x, y }, o) < range) return true;
+  return false;
+}
+
+/* ============================================================
+   RESPONSIVE UI — tabs, pause, help, controls
+   ============================================================ */
+document.querySelectorAll("#tab-bar button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#tab-bar button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-page").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    el(btn.dataset.tab).classList.add("active");
+  });
+});
+canvas.addEventListener("pointerdown", e => { e.preventDefault(); placeAt(e.clientX, e.clientY); });
+el("btn-pause").addEventListener("click", e => {
+  state.paused = !state.paused;
+  e.currentTarget.innerHTML = state.paused ? "\u25B6" : "\u275A\u275A";
+  elPaused.classList.toggle("hidden", !state.paused);
+});
+el("btn-step").addEventListener("click", () => {
+  if (!state.paused) {
+    state.paused = true;
+    el("btn-pause").innerHTML = "\u25B6";
+    elPaused.classList.remove("hidden");
+  }
+  step(SIM_DT); render(); renderAll();
+});
+el("btn-reset").addEventListener("click", () => { seedWorld(); render(); });
+el("speed-slider").addEventListener("input", e => {
+  state.speed = parseFloat(e.target.value);
+  elSpeed.textContent = state.speed.toFixed(2).replace(/0$/, "") + "x";
+});
+el("btn-help").addEventListener("click", () => el("help-modal").classList.remove("hidden"));
+el("help-close").addEventListener("click", () => el("help-modal").classList.add("hidden"));
+el("help-modal").addEventListener("click", e => {
+  if (e.target === el("help-modal")) el("help-modal").classList.add("hidden");
+});
+window.addEventListener("resize", render);
+
+/* ============================================================
+   MAIN LOOP + BOOT
+   ============================================================ */
+let lastTime = performance.now(), accumulator = 0, panelTimer = 0;
+function frame(now) {
+  const elapsed = Math.min((now - lastTime) / 1000, 0.25);
+  lastTime = now;
+  if (!state.paused) {
+    accumulator += elapsed * state.speed;
+    let guard = 0;
+    while (accumulator >= SIM_DT && guard < 20) {
+      step(SIM_DT); accumulator -= SIM_DT; guard++;
+    }
+  }
+  render();
+  panelTimer += elapsed;
+  if (panelTimer > 0.35) { panelTimer = 0; renderAll(); }
+  requestAnimationFrame(frame);
+}
+state.bestStates = loadJSON(STORAGE_KEY, 0);
+buildPalette();
+// agent-panel legend is generated from the actual bar colors — always in sync
+el("need-legend").innerHTML = NEED_BAR.map(([key, color]) =>
+  '<span><i style="background:' + color + '"></i>' +
+  key[0].toUpperCase() + key.slice(1) + '</span>').join("");
+// first visit: open the help overlay so the loop is clear from minute one
+if (!loadJSON(HELP_SEEN_KEY, false)) {
+  el("help-modal").classList.remove("hidden");
+  save(HELP_SEEN_KEY, true);
+}
+window.__PE = { state, spawnObject, spawnCreature, BELIEFS, APPLICATIONS, sideOf, observe };
+requestAnimationFrame(() => {
+  resizeCanvas(); seedWorld(); render();
+  requestAnimationFrame(frame);
+});
+})();
+
+</script>
+</body>
+</html>
